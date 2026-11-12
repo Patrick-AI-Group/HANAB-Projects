@@ -998,17 +998,20 @@ export async function onderzoekRapport(
   return { bron: "lokaal", tekst: lokaalOnderzoekRapport(ctx, onderzoek, bevindingen, tracelengteM) };
 }
 
-async function onderzoekRapportClaude(
+// Systeemprompt + user-prompt gedeeld door de stream- en non-stream-variant.
+const ONDERZOEK_RAPPORT_SYSTEM =
+  "Je bent adviseur conditionerende onderzoeken bij een Nederlandse aannemer ondergrondse infra. Je schrijft heldere, bruikbare onderzoeksrapporten.";
+
+function bouwOnderzoekRapportPrompt(
   ctx: ProjectContext,
   onderzoek: OnderzoekInfo,
   bevindingen: Bevinding[],
   tracelengteM?: number
-): Promise<{ bron: AdviesBron; tekst: string }> {
-  const client = await getClient();
+): string {
   const data = bevindingen
     .map((b) => `- ${b.thema}: ${typeof b.aantal === "number" ? b.aantal + " — " : ""}${b.samenvatting}`)
     .join("\n");
-  const userPrompt = [
+  return [
     `Schrijf een professioneel, beknopt rapport voor het conditionerende onderzoek "${labelOnderzoek(onderzoek.type)}".`,
     `Project: ${ctx.naam} (${labelProjectType(ctx.type)})${ctx.plaats ? ", " + ctx.plaats : ""}.`,
     tracelengteM ? `Tracélengte: ca. ${tracelengteM} m.` : "",
@@ -1022,13 +1025,59 @@ async function onderzoekRapportClaude(
   ]
     .filter(Boolean)
     .join("\n");
+}
 
+/**
+ * Streamt een onderzoeksrapport als tekstfragmenten voor live weergave. Valt
+ * NIET automatisch terug op lokaal — de aanroeper (route) vangt fouten af.
+ */
+export async function* streamOnderzoekRapport(
+  ctx: ProjectContext,
+  onderzoek: OnderzoekInfo,
+  bevindingen: Bevinding[] = [],
+  tracelengteM?: number
+): AsyncGenerator<string> {
+  const client = await getClient();
+  const stream = client.messages.stream({
+    model: await getModel(),
+    max_tokens: 1800,
+    system: ONDERZOEK_RAPPORT_SYSTEM,
+    messages: [{ role: "user", content: bouwOnderzoekRapportPrompt(ctx, onderzoek, bevindingen, tracelengteM) }],
+  });
+  for await (const ev of stream as any) {
+    if (ev.type === "content_block_delta" && ev.delta?.type === "text_delta") {
+      yield ev.delta.text as string;
+    }
+  }
+}
+
+/** Levert het lokale (offline) onderzoeksrapport — gebruikt als fallback. */
+export function lokaalOnderzoekRapportTekst(
+  ctx: ProjectContext,
+  onderzoek: OnderzoekInfo,
+  bevindingen: Bevinding[] = [],
+  tracelengteM?: number
+): string {
+  return lokaalOnderzoekRapport(ctx, onderzoek, bevindingen, tracelengteM);
+}
+
+/** Of er een Claude-sleutel beschikbaar is (voor de streaming-route). */
+export async function heeftClaudeSleutel(): Promise<boolean> {
+  return heeftSleutel();
+}
+
+async function onderzoekRapportClaude(
+  ctx: ProjectContext,
+  onderzoek: OnderzoekInfo,
+  bevindingen: Bevinding[],
+  tracelengteM?: number
+): Promise<{ bron: AdviesBron; tekst: string }> {
+  const client = await getClient();
   const resp = await client.messages.create({
     model: await getModel(),
     max_tokens: 1800,
-    system:
-      "Je bent adviseur conditionerende onderzoeken bij een Nederlandse aannemer ondergrondse infra. Je schrijft heldere, bruikbare onderzoeksrapporten.",
-    messages: [{ role: "user", content: userPrompt }],
+    system: ONDERZOEK_RAPPORT_SYSTEM,
+    messages: [{ role: "user", content: bouwOnderzoekRapportPrompt(ctx, onderzoek, bevindingen, tracelengteM) }],
   });
   const tekst = resp.content
     .filter((b: any) => b.type === "text")

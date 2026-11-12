@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { OnderzoekStatusBadge } from "@/components/Badges";
 import { SubmitKnop } from "@/components/SubmitKnop";
+import { RapportStream } from "@/components/RapportStream";
 import {
   EENHEDEN,
   MBB_STATUS,
@@ -25,7 +26,6 @@ import {
   genereerMBB,
   genereerMonitoring,
   genereerOnderzoeksadvies,
-  genereerOnderzoekRapport,
   genereerVoca,
   genereerWerktekeningen,
   genereerDossierDocumentenAction,
@@ -129,23 +129,12 @@ export default async function ProjectIntake({ params }: { params: { id: string }
                         {o.aiRationale}
                       </div>
                     )}
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <form action={genereerOnderzoekRapport}>
-                        <input type="hidden" name="onderzoekId" value={o.id} />
-                        <SubmitKnop className="btn-ghost px-2.5 py-1 text-xs" bezigLabel="AI schrijft…">
-                          ✨ {o.rapport ? "Rapport opnieuw genereren" : "Genereer AI-rapport"}
-                        </SubmitKnop>
-                      </form>
-                      {o.rapportPad && (
-                        <a
-                          href={o.rapportPad}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-xs font-medium text-hanab-700 hover:underline"
-                        >
-                          rapport openen ↗
-                        </a>
-                      )}
+                    <div className="mt-2">
+                      <RapportStream
+                        onderzoekId={o.id}
+                        bestaand={!!o.rapport}
+                        rapportPad={o.rapportPad}
+                      />
                     </div>
                     {o.rapport && (
                       <details className="mt-2 rounded-md bg-slate-50 px-3 py-2 ring-1 ring-slate-200">
