@@ -1,0 +1,203 @@
+// HANAB BMS — datamodel
+// Ondergrondse infra: kabels elektra en leidingen water.
+// Enums worden als String opgeslagen (SQLite ondersteunt geen native enums);
+// toegestane waarden en labels staan centraal in src/lib/domein.ts.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Project {
+  id            String   @id @default(cuid())
+  projectnummer String   @unique
+  naam          String
+  opdrachtgever String
+  type          String // KABELS_ELEKTRA | LEIDINGEN_WATER | COMBI
+  plaats        String?
+  omschrijving  String?
+  status        String   @default("INTAKE") // INTAKE | VOORBEREIDING | UITVOERING | REVISIE | AFGEROND
+  startdatum    DateTime?
+  opleverdatum  DateTime?
+  traceGeoJson  String? // ingetekend tracé (GeoJSON LineString)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  onderzoeken     ConditionerendOnderzoek[]
+  documenten      Document[]
+  activiteiten    Activiteit[]
+  vocaRegels      VocaRegel[]
+  materiaalRegels MateriaalRegel[]
+  werktekeningen  Werktekening[]
+  weekproducties  Weekproductie[]
+  deelbetalingen  Deelbetaling[]
+  deelrevisies    Deelrevisie[]
+  bureauonderzoek Bureauonderzoek?
+}
+
+// Bureauonderzoek: open-data-bevindingen langs het tracé + AI-rapport (één per project)
+model Bureauonderzoek {
+  id              String    @id @default(cuid())
+  projectId       String    @unique
+  project         Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  bevindingenJson String? // JSON-array met bevindingen per thema/bron
+  rapport         String? // AI-gegenereerd bureauonderzoeksrapport
+  bron            String? // claude | lokaal
+  gegenereerdOp   DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// Werktekeningen (intake/voorbereiding)
+model Werktekening {
+  id             String   @id @default(cuid())
+  projectId      String
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tekeningnummer String?
+  titel          String
+  discipline     String   @default("TRACE") // TRACE | DWARSPROFIEL | DETAIL | BOORPROFIEL | DWP | OVERIG
+  versie         String   @default("A")
+  status         String   @default("CONCEPT") // CONCEPT | IN_REVIEW | GOEDGEKEURD | DEFINITIEF | VERVALLEN
+  tekenaar       String?
+  aiRationale    String?
+  pad            String? // relatieve URL naar de gegenereerde tekening (SVG)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// Applicatie-instellingen (key/value), o.a. de Anthropic API-sleutel.
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+// Weekproducties (uitvoering) — geregistreerde productie per week
+model Weekproductie {
+  id           String               @id @default(cuid())
+  projectId    String
+  project      Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  jaar         Int
+  week         Int
+  omschrijving String?
+  status       String               @default("CONCEPT") // CONCEPT | INGEDIEND | GOEDGEKEURD
+  createdAt    DateTime             @default(now())
+  regels       WeekproductieRegel[]
+}
+
+model WeekproductieRegel {
+  id              String        @id @default(cuid())
+  weekproductieId String
+  weekproductie   Weekproductie @relation(fields: [weekproductieId], references: [id], onDelete: Cascade)
+  omschrijving    String
+  eenheid         String        @default("m1")
+  gepland         Float         @default(0)
+  gerealiseerd    Float         @default(0)
+  eenheidsprijs   Float         @default(0)
+}
+
+// Deelbetalingen (uitvoering) — termijnstaat op basis van gerealiseerde productie
+model Deelbetaling {
+  id           String   @id @default(cuid())
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  termijn      Int
+  datum        DateTime?
+  omschrijving String?
+  bedrag       Float    @default(0)
+  status       String   @default("CONCEPT") // CONCEPT | INGEDIEND | GOEDGEKEURD | BETAALD
+  createdAt    DateTime @default(now())
+}
+
+// Deelrevisies (uitvoering) — revisie per deel/fase
+model Deelrevisie {
+  id           String   @id @default(cuid())
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  deel         String
+  omschrijving String?
+  status       String   @default("OPENSTAAND") // OPENSTAAND | IN_BEWERKING | INGEDIEND | GOEDGEKEURD
+  datum        DateTime?
+  aiRationale  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// Voorcalculatie (VOCA) — begrotingsregels: hoeveelheid x eenheidsprijs.
+model VocaRegel {
+  id            String   @id @default(cuid())
+  projectId     String
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  omschrijving  String
+  categorie     String   @default("OVERIG") // VERGUNNINGEN | GRONDWERK | MATERIAAL | MATERIEEL | ONDERAANNEMER | HERSTEL | OVERIG
+  eenheid       String   @default("post") // m1 | m2 | m3 | st | uur | post
+  hoeveelheid   Float    @default(0)
+  eenheidsprijs Float    @default(0)
+  aiGegenereerd Boolean  @default(false)
+  createdAt     DateTime @default(now())
+}
+
+// Materiaal Bestellingen Bestand (MBB) — te bestellen materialen.
+model MateriaalRegel {
+  id            String   @id @default(cuid())
+  projectId     String
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  artikel       String
+  eenheid       String   @default("st")
+  hoeveelheid   Float    @default(0)
+  leverancier   String?
+  eenheidsprijs Float?
+  status        String   @default("TE_BESTELLEN") // TE_BESTELLEN | BESTELD | GELEVERD
+  bron          String?  // VOCA | AI | HANDMATIG
+  createdAt     DateTime @default(now())
+}
+
+model ConditionerendOnderzoek {
+  id             String    @id @default(cuid())
+  projectId      String
+  project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  type           String // zie ONDERZOEK_TYPES in src/lib/domein.ts
+  titel          String?
+  status         String    @default("NOG_AAN_TE_VRAGEN") // NOG_AAN_TE_VRAGEN | AANGEVRAAGD | IN_UITVOERING | ONTVANGEN | BEOORDEELD | AFGEKEURD
+  uitvoerder     String? // uitvoerend bureau / instantie
+  aanvraagdatum  DateTime?
+  verwachtKlaar  DateTime? // verwachte opleverdatum onderzoek
+  ontvangstdatum DateTime?
+  referentie     String?
+  kosten         Float?
+  verplicht      Boolean   @default(true)
+  opmerkingen    String?
+  aiRationale    String? // onderbouwing uit AI-advies
+  rapport        String? // AI-gegenereerd onderzoeksrapport (tekst)
+  rapportPad     String? // relatieve URL naar het opgemaakte HTML-rapport
+  rapportBron    String? // claude | lokaal
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  documenten Document[]
+}
+
+model Document {
+  id          String                   @id @default(cuid())
+  projectId   String
+  project     Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  onderzoekId String?
+  onderzoek   ConditionerendOnderzoek? @relation(fields: [onderzoekId], references: [id], onDelete: SetNull)
+  naam        String
+  categorie   String? // zie DOCUMENT_CATEGORIE in src/lib/domein.ts
+  pad         String? // relatieve URL onder /public (bv. /docs/HNB-2026-001/voorcalculatie.html)
+  createdAt   DateTime                 @default(now())
+}
+
+model Activiteit {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  type      String   @default("INFO") // INFO | AI | STATUS | WAARSCHUWING
+  bericht   String
+  createdAt DateTime @default(now())
+}

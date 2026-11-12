@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  @apply text-slate-900 antialiased;
+  background-color: #eef2f7;
+  /* subtiel blueprint-raster */
+  background-image: radial-gradient(#d5deea 1.1px, transparent 1.1px);
+  background-size: 22px 22px;
+  background-attachment: fixed;
+}
+
+/* Herbruikbare UI-klassen */
+@layer components {
+  .badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-hanab-700 text-white hover:bg-hanab-800;
+  }
+  .btn-accent {
+    @apply btn bg-hanab-accent text-white hover:bg-hanab-accentDark;
+  }
+  .btn-ghost {
+    @apply btn bg-white text-slate-700 ring-1 ring-inset ring-slate-300 hover:bg-slate-50;
+  }
+  .card {
+    @apply rounded-xl bg-white shadow-sm ring-1 ring-slate-200;
+  }
+  .input {
+    @apply w-full rounded-lg border-0 bg-white px-3 py-2 text-sm text-slate-900 ring-1 ring-inset ring-slate-300 placeholder:text-slate-400 focus:ring-2 focus:ring-hanab-600;
+  }
+  .label {
+    @apply mb-1 block text-sm font-medium text-slate-700;
+  }
+}
