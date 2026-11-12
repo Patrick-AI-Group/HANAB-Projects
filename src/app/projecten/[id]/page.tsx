@@ -625,7 +625,7 @@ export default async function ProjectIntake({ params }: { params: { id: string }
           <div>
             <h2 className="font-semibold">Projectdossier &amp; documenten</h2>
             <p className="text-xs text-slate-500">
-              Gegenereerde dossierstukken (HTML, printbaar + CSV) — opgeslagen onder <code>/public/docs</code>
+              Gegenereerde dossierstukken (HTML printbaar, CSV, PDF, Word, ZIP) — opgeslagen in Vercel Blob (productie) of lokaal onder <code>/public/docs</code>
             </p>
           </div>
           <form action={genereerDossierDocumentenAction}>

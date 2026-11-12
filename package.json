@@ -20,6 +20,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.68.0",
     "@prisma/client": "^5.22.0",
+    "@vercel/blob": "^2.9.0",
     "archiver": "^7.0.1",
     "docx": "^9.15.1",
     "exceljs": "^4.4.0",

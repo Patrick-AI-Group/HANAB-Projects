@@ -1,13 +1,12 @@
 // Genereert en bewaart een AI-rapport voor één conditionerend onderzoek,
 // inclusief de HANAB-huisstijl HTML en de documentregistratie. Server-only.
 
-import { promises as fs } from "fs";
-import path from "path";
 import { prisma } from "./db";
 import { onderzoekRapport } from "./ai";
 import { onderzoekRapportHtml } from "./documenten";
 import { traceCoords, traceLengteMeter } from "./opendata";
 import { labelOnderzoek } from "./domein";
+import { bewaarBestand, contentTypeVoor } from "./opslag";
 
 export async function schrijfOnderzoekRapport(onderzoekId: string): Promise<string | null> {
   const onderzoek = await prisma.conditionerendOnderzoek.findUnique({ where: { id: onderzoekId } });
@@ -37,11 +36,9 @@ export async function schrijfOnderzoekRapport(onderzoekId: string): Promise<stri
 
   const datum = new Date().toLocaleDateString("nl-NL");
   const html = onderzoekRapportHtml(project, onderzoek, resultaat.tekst, datum);
-  const dir = path.join(process.cwd(), "public", "docs", project.projectnummer, "onderzoeken");
-  await fs.mkdir(dir, { recursive: true });
   const bestand = `${onderzoek.type.toLowerCase()}-${onderzoek.id.slice(-5)}.html`;
-  await fs.writeFile(path.join(dir, bestand), html, "utf8");
-  const pad = `/docs/${encodeURIComponent(project.projectnummer)}/onderzoeken/${bestand}`;
+  const key = `docs/${project.projectnummer}/onderzoeken/${bestand}`;
+  const pad = await bewaarBestand(key, html, contentTypeVoor(bestand));
 
   await prisma.conditionerendOnderzoek.update({
     where: { id: onderzoekId },

@@ -2,10 +2,9 @@
 // het bureauonderzoek uit (live open data) en schrijft + registreert alle
 // dossierdocumenten.
 
-import { promises as fs, createWriteStream } from "fs";
-import path from "path";
 import archiver from "archiver";
 import { prisma } from "./db";
+import { bewaarBestand, contentTypeVoor } from "./opslag";
 import {
   onderzoeksadvies,
   voorcalculatieAdvies,
@@ -243,13 +242,16 @@ export async function schrijfDossier(projectId: string): Promise<number> {
   });
 
   const datum = new Date().toLocaleDateString("nl-NL");
-  const dir = path.join(process.cwd(), "public", "docs", p.projectnummer);
-  await fs.mkdir(dir, { recursive: true });
-  const urlDir = `/docs/${encodeURIComponent(p.projectnummer)}`;
+  // Opslagsleutel-prefix (zonder leidende slash). bewaarBestand() levert de
+  // publieke URL terug: een Blob-URL op Vercel of een /docs/...-URL lokaal.
+  const prefix = `docs/${p.projectnummer}`;
 
   // Situatiekaart (OSM-tegels + tracé)
   const coords = traceCoords(p.traceGeoJson);
   const kaartje = coords.length >= 2 ? await maakKaartje(coords).catch(() => null) : null;
+
+  // Alles wat in de ZIP moet, verzamelen we in-memory (Vercel-fs is read-only).
+  const zipEntries: { name: string; content: string | Buffer }[] = [];
 
   // Werktekeningen (SVG) genereren, koppelen én verzamelen voor inbedding
   let cptAantal = 0;
@@ -259,18 +261,16 @@ export async function schrijfDossier(projectId: string): Promise<number> {
   } catch {
     cptAantal = 0;
   }
-  const tekBestanden: { naam: string; bestand: string }[] = [];
+  const tekBestanden: { naam: string; url: string }[] = [];
   const tekeningSvgs: { titel: string; svg: string }[] = [];
-  if (p.werktekeningen.length > 0) {
-    await fs.mkdir(path.join(dir, "tekeningen"), { recursive: true });
-    for (const t of p.werktekeningen) {
-      const svg = tekeningVoor(p, coords, t, datum, cptAantal);
-      const bestand = `tekeningen/${t.discipline.toLowerCase()}-${t.id.slice(-5)}.svg`;
-      await fs.writeFile(path.join(dir, bestand), svg, "utf8");
-      await prisma.werktekening.update({ where: { id: t.id }, data: { pad: `${urlDir}/${bestand}` } });
-      tekBestanden.push({ naam: `Werktekening — ${t.titel}`, bestand });
-      tekeningSvgs.push({ titel: t.titel, svg });
-    }
+  for (const t of p.werktekeningen) {
+    const svg = tekeningVoor(p, coords, t, datum, cptAantal);
+    const bestand = `tekeningen/${t.discipline.toLowerCase()}-${t.id.slice(-5)}.svg`;
+    const url = await bewaarBestand(`${prefix}/${bestand}`, svg, contentTypeVoor(bestand));
+    await prisma.werktekening.update({ where: { id: t.id }, data: { pad: url } });
+    tekBestanden.push({ naam: `Werktekening — ${t.titel}`, url });
+    tekeningSvgs.push({ titel: t.titel, svg });
+    zipEntries.push({ name: bestand, content: svg });
   }
 
   // Dossierstukken (met situatiekaart + tekeningen ingebed)
@@ -278,10 +278,11 @@ export async function schrijfDossier(projectId: string): Promise<number> {
   const stukken = bouwDossier(p, datum, { kaartjeSvg: kaartje?.svg, tekeningen: tekeningSvgs, lengteM });
 
   // 1. Losse stukken (HTML + CSV) wegschrijven
-  const bestanden: string[] = [];
+  const stukUrls: { naam: string; categorie: string; url: string }[] = [];
   for (const s of stukken) {
-    await fs.writeFile(path.join(dir, s.bestandsnaam), s.inhoud, "utf8");
-    bestanden.push(s.bestandsnaam);
+    const url = await bewaarBestand(`${prefix}/${s.bestandsnaam}`, s.inhoud, contentTypeVoor(s.bestandsnaam));
+    stukUrls.push({ naam: s.naam, categorie: s.categorie, url });
+    zipEntries.push({ name: s.bestandsnaam, content: s.inhoud });
   }
 
   // 2. Geconsolideerd dossier als echte PDF en Word
@@ -289,50 +290,48 @@ export async function schrijfDossier(projectId: string): Promise<number> {
     dossierPdf(p, datum, { kaartje, tekeningen: tekeningSvgs }),
     dossierDocx(p, datum),
   ]);
-  await fs.writeFile(path.join(dir, "Projectdossier.pdf"), pdf);
-  await fs.writeFile(path.join(dir, "Projectdossier.docx"), docx);
+  const pdfUrl = await bewaarBestand(`${prefix}/Projectdossier.pdf`, pdf, contentTypeVoor("x.pdf"));
+  const docxUrl = await bewaarBestand(`${prefix}/Projectdossier.docx`, docx, contentTypeVoor("x.docx"));
+  zipEntries.push({ name: "Projectdossier.pdf", content: pdf });
+  zipEntries.push({ name: "Projectdossier.docx", content: docx });
 
-  // 3. Alles bundelen in één ZIP
-  await maakZip(path.join(dir, "Projectdossier.zip"), dir, [
-    "Projectdossier.pdf",
-    "Projectdossier.docx",
-    ...bestanden,
-    ...tekBestanden.map((x) => x.bestand),
-  ]);
+  // 3. Alles bundelen in één ZIP (in-memory) en wegschrijven
+  const zipBuf = await maakZipBuffer(zipEntries);
+  const zipUrl = await bewaarBestand(`${prefix}/Projectdossier.zip`, zipBuf, contentTypeVoor("x.zip"));
 
   // 4. Registraties verversen
   await prisma.document.deleteMany({ where: { projectId } });
   await prisma.document.create({
-    data: { projectId, naam: "Projectdossier — ZIP (volledig)", categorie: "DOSSIER", pad: `${urlDir}/Projectdossier.zip` },
+    data: { projectId, naam: "Projectdossier — ZIP (volledig)", categorie: "DOSSIER", pad: zipUrl },
   });
   await prisma.document.create({
-    data: { projectId, naam: "Projectdossier (PDF)", categorie: "DOSSIER", pad: `${urlDir}/Projectdossier.pdf` },
+    data: { projectId, naam: "Projectdossier (PDF)", categorie: "DOSSIER", pad: pdfUrl },
   });
   await prisma.document.create({
-    data: { projectId, naam: "Projectdossier (Word)", categorie: "DOSSIER", pad: `${urlDir}/Projectdossier.docx` },
+    data: { projectId, naam: "Projectdossier (Word)", categorie: "DOSSIER", pad: docxUrl },
   });
-  for (const s of stukken) {
+  for (const s of stukUrls) {
     await prisma.document.create({
-      data: { projectId, naam: s.naam, categorie: s.categorie, pad: `${urlDir}/${s.bestandsnaam}` },
+      data: { projectId, naam: s.naam, categorie: s.categorie, pad: s.url },
     });
   }
   for (const tk of tekBestanden) {
     await prisma.document.create({
-      data: { projectId, naam: tk.naam, categorie: "WERKTEKENINGEN", pad: `${urlDir}/${tk.bestand}` },
+      data: { projectId, naam: tk.naam, categorie: "WERKTEKENINGEN", pad: tk.url },
     });
   }
   return stukken.length + 3 + tekBestanden.length;
 }
 
-/** Bundelt de opgegeven bestanden uit `dir` in één ZIP op `outPath`. */
-function maakZip(outPath: string, dir: string, files: string[]): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
-    const output = createWriteStream(outPath);
+/** Bundelt in-memory bestanden tot één ZIP-buffer. */
+function maakZipBuffer(entries: { name: string; content: string | Buffer }[]): Promise<Buffer> {
+  return new Promise<Buffer>((resolve, reject) => {
     const archive = archiver("zip", { zlib: { level: 9 } });
-    output.on("close", () => resolve());
+    const chunks: Buffer[] = [];
+    archive.on("data", (c: Buffer) => chunks.push(c));
     archive.on("error", (e) => reject(e));
-    archive.pipe(output);
-    for (const f of files) archive.file(path.join(dir, f), { name: f });
+    archive.on("end", () => resolve(Buffer.concat(chunks)));
+    for (const e of entries) archive.append(e.content, { name: e.name });
     archive.finalize();
   });
 }
