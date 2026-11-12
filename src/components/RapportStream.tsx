@@ -3,6 +3,17 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
+// Lichte sanitisatie van de (tijdens het streamen nog onvolledige) HTML voordat
+// die live wordt weergegeven: verwijder scripts/styles en event-handlers.
+function saneer(html: string): string {
+  return html
+    .replace(/```html?/gi, "")
+    .replace(/```/g, "")
+    .replace(/<(script|style|iframe|object|embed)[\s\S]*?(<\/\1>|$)/gi, "")
+    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+    .replace(/javascript:/gi, "");
+}
+
 /**
  * Genereert een AI-onderzoeksrapport en toont de tekst LIVE terwijl Claude
  * schrijft (streaming). Na afloop wordt de pagina ververst zodat de opgeslagen
@@ -21,7 +32,7 @@ export function RapportStream({
   const [bezig, setBezig] = useState(false);
   const [open, setOpen] = useState(false);
   const [fout, setFout] = useState<string | null>(null);
-  const preRef = useRef<HTMLPreElement>(null);
+  const preRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
   async function genereer() {
@@ -81,13 +92,14 @@ export function RapportStream({
       </div>
 
       {open && (
-        <pre
+        <div
           ref={preRef}
-          className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap rounded-md bg-slate-50 px-3 py-2 font-sans text-xs leading-relaxed text-slate-700 ring-1 ring-slate-200"
+          className="rapport-live mt-2 max-h-96 overflow-auto rounded-md bg-white px-4 py-3 text-sm leading-relaxed text-slate-700 ring-1 ring-slate-200"
         >
-          {tekst || (bezig ? "…" : "")}
+          <div dangerouslySetInnerHTML={{ __html: saneer(tekst) }} />
+          {bezig && !tekst && <span className="text-slate-400">…</span>}
           {bezig && <span className="ml-0.5 inline-block h-3 w-1.5 animate-pulse bg-slate-400 align-middle" />}
-        </pre>
+        </div>
       )}
       {fout && <p className="mt-1 text-xs text-rose-600">Kon rapport niet genereren: {fout}</p>}
     </div>

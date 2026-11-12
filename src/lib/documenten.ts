@@ -124,6 +124,10 @@ function wrap(titel: string, p: any, body: string, datum: string, opts: { soort?
   .rap ul li::before{content:"";position:absolute;left:3px;top:11px;width:6px;height:6px;border-radius:50%;background:var(--accent)}
   .rap h2{font-size:15px;color:var(--navy);border-bottom:2px solid var(--grid);padding-bottom:5px;margin:22px 0 10px}
   .rap h2 .nr{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;background:var(--navy);color:#fff;font-size:11px;font-weight:800;margin-right:9px;vertical-align:middle}
+  .rap h3{font-size:13px;color:var(--navy2);margin:14px 0 6px;font-weight:700}
+  .rap ol{margin:8px 0 12px 20px;color:#334155;font-size:13.5px;line-height:1.6}
+  .rap table{margin:10px 0}
+  .rap strong{color:#0f172a}
   footer{padding:16px 32px;color:#94a3b8;font-size:11px;border-top:1px solid var(--grid);display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px}
   a{color:var(--navy2)}
   figure{margin:0}
@@ -285,6 +289,43 @@ function bureauonderzoek(p: any, datum: string, kaartjeSvg?: string): string {
 }
 
 /** HANAB-huisstijl HTML-rapport voor één conditionerend onderzoek. */
+// Toegestane tags voor door AI gegenereerde rapport-HTML. Alles daarbuiten
+// (met name <script>/<style>/<iframe> en on*-handlers) wordt verwijderd.
+const RAPPORT_TOEGESTAAN = new Set([
+  "h2", "h3", "h4", "p", "ul", "ol", "li", "strong", "b", "em", "i", "br",
+  "table", "thead", "tbody", "tfoot", "tr", "th", "td",
+]);
+
+function saneerRapportHtml(html: string): string {
+  return html
+    // Verwijder eventuele markdown-codefences (```html ... ```).
+    .replace(/```html?/gi, "")
+    .replace(/```/g, "")
+    // Verwijder volledige gevaarlijke elementen inclusief inhoud.
+    .replace(/<(script|style|iframe|object|embed)[\s\S]*?<\/\1>/gi, "")
+    // Verwijder event-handlers en javascript:-URLs.
+    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+    .replace(/javascript:/gi, "")
+    // Strip alle tags die niet op de witte lijst staan (behoud de inhoud).
+    .replace(/<\/?([a-z0-9]+)\b[^>]*>/gi, (m, tag) =>
+      RAPPORT_TOEGESTAAN.has(String(tag).toLowerCase()) ? m : ""
+    );
+}
+
+/** Of de opgeslagen rapporttekst al HTML is (van de AI) of nog platte tekst. */
+function isHtmlRapport(tekst: string): boolean {
+  return /<(h2|h3|p|ul|ol|table|strong)\b/i.test(tekst);
+}
+
+/** Levert de opgemaakte rapport-body: AI-HTML (gesaneerd) of, bij platte tekst,
+ *  omgezet naar secties/lijsten/alinea's. */
+function rapportBodyHtml(tekst: string): string {
+  if (isHtmlRapport(tekst)) {
+    return `<div class="rap">${saneerRapportHtml(tekst)}</div>`;
+  }
+  return rapportTekstNaarHtml(tekst);
+}
+
 /** Zet de platte rapporttekst (genummerde HOOFDLETTER-koppen + '- ' bullets) om
  *  naar opgemaakte HTML met secties, lijsten en alinea's. */
 function rapportTekstNaarHtml(tekst: string): string {
@@ -363,7 +404,7 @@ export function onderzoekRapportHtml(
         .join("")}</tbody></table>`
     : "";
 
-  const body = kpiKaarten(kpis) + metaTabel + rapportTekstNaarHtml(tekst) + bevindingenTabel;
+  const body = kpiKaarten(kpis) + metaTabel + rapportBodyHtml(tekst) + bevindingenTabel;
   return wrap(`Rapportage — ${labelOnderzoek(onderzoek.type)}`, p, body, datum, {
     soort: "Onderzoeksrapport",
     intro: `Conditionerend onderzoek voor project ${p.naam}${p.plaats ? " te " + p.plaats : ""}. Dit rapport onderbouwt de uitvoerbaarheid en de te nemen maatregelen conform de geldende normen en regelgeving.`,

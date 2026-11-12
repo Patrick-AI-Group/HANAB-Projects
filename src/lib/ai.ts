@@ -999,8 +999,11 @@ export async function onderzoekRapport(
 }
 
 // Systeemprompt + user-prompt gedeeld door de stream- en non-stream-variant.
+// Het rapport wordt als schoon, semantisch HTML-fragment geschreven zodat de
+// opmaak (koppen, tabellen, opsommingen) rechtstreeks weergegeven kan worden.
 const ONDERZOEK_RAPPORT_SYSTEM =
-  "Je bent adviseur conditionerende onderzoeken bij een Nederlandse aannemer ondergrondse infra. Je schrijft heldere, bruikbare onderzoeksrapporten.";
+  "Je bent adviseur conditionerende onderzoeken bij een Nederlandse aannemer ondergrondse infra. " +
+  "Je schrijft volledige, bruikbare onderzoeksrapporten als schone, semantische HTML.";
 
 function bouwOnderzoekRapportPrompt(
   ctx: ProjectContext,
@@ -1012,7 +1015,7 @@ function bouwOnderzoekRapportPrompt(
     .map((b) => `- ${b.thema}: ${typeof b.aantal === "number" ? b.aantal + " — " : ""}${b.samenvatting}`)
     .join("\n");
   return [
-    `Schrijf een volledig, professioneel onderzoeksrapport voor het conditionerende onderzoek "${labelOnderzoek(onderzoek.type)}" bij een Nederlands ondergronds-infraproject.`,
+    `Schrijf een VOLLEDIG, professioneel onderzoeksrapport voor het conditionerende onderzoek "${labelOnderzoek(onderzoek.type)}" bij een Nederlands ondergronds-infraproject.`,
     "",
     "PROJECTGEGEVENS:",
     `- Project: ${ctx.naam}`,
@@ -1023,22 +1026,26 @@ function bouwOnderzoekRapportPrompt(
     tracelengteM ? `- Tracélengte: ca. ${Math.round(tracelengteM)} m` : "",
     onderzoek.uitvoerder ? `- Uitvoerder onderzoek: ${onderzoek.uitvoerder}` : "",
     "",
-    data ? `BESCHIKBARE OPEN-DATA-BEVINDINGEN LANGS HET TRACÉ (gebruik deze concreet in de resultaten):\n${data}` : "GEEN open-data-bevindingen aangeleverd; baseer de resultaten op de gangbare praktijk voor dit onderzoekstype.",
+    data
+      ? `BESCHIKBARE OPEN-DATA-BEVINDINGEN LANGS HET TRACÉ (gebruik deze concreet in de resultaten):\n${data}`
+      : "GEEN open-data-bevindingen aangeleverd; baseer de resultaten op de gangbare praktijk voor dit onderzoekstype.",
     "",
-    "STRUCTUUR — gebruik exact deze genummerde secties, elke kop op een eigen regel in HOOFDLETTERS:",
-    "1. AANLEIDING EN DOEL",
-    "2. PROJECT- EN TRACÉGEGEVENS",
-    "3. ONDERZOEKSOPZET EN NORMKADER",
-    "4. RESULTATEN EN BEVINDINGEN",
-    "5. RISICO'S EN AANDACHTSPUNTEN",
-    "6. CONCLUSIE EN ADVIES",
-    "7. VERVOLGSTAPPEN EN PLANNING",
+    "LEVER UITSLUITEND EEN HTML-FRAGMENT. Regels:",
+    "- Gebruik alleen deze tags: <h2>, <h3>, <p>, <ul>, <li>, <strong>, <table>, <thead>, <tbody>, <tr>, <th>, <td>.",
+    "- GEEN <html>, <head>, <body>, <script>, <style>; GEEN inline style-attributen; GEEN markdown (#, *, **).",
+    "- Elke sectie begint met een <h2>. Sluit ALLE tags correct af en maak ALLE secties volledig af.",
+    "- LENGTE: beknopt maar compleet, circa 650–850 woorden in TOTAAL (± 2-4 zinnen of 3-5 opsommingspunten per sectie). Liever korter en met alle 7 secties volledig afgerond dan lang en halverwege afgekapt. Begin direct met sectie 1, geen inleidende tekst ervoor.",
     "",
-    "EISEN:",
-    "- Volledig en concreet: elke sectie meerdere alinea's; noem specifieke, relevante Nederlandse normen en regelgeving (bv. WIBON/KLIC, CROW 500, NEN 3650/3651, NTA 8017, BRL SIKB, Wet natuurbescherming, Omgevingswet) passend bij dit onderzoekstype.",
-    "- Gebruik opsommingen met '- ' voor concrete punten, stappen, risico's en vervolgacties.",
-    "- Projectspecifiek: verwijs naar de locatie, het tracé en de aangeleverde bevindingen; geen generieke borden.",
-    "- Zakelijk Nederlands, in de wij-vorm van de aannemer. Platte tekst, GEEN markdown-tekens (geen #, *, **, geen tabellen); alleen genummerde HOOFDLETTER-koppen en '- ' opsommingen.",
+    "SECTIES (elk een <h2>):",
+    "<h2>1. Aanleiding en doel</h2>",
+    "<h2>2. Project- en tracégegevens</h2> — geef deze als <table> met rij-labels (<th>) en waarden (<td>).",
+    "<h2>3. Onderzoeksopzet en normkader</h2>",
+    "<h2>4. Resultaten en bevindingen</h2> — gebruik waar passend een <table> of <ul>.",
+    "<h2>5. Risico's en aandachtspunten</h2> — als <ul>.",
+    "<h2>6. Conclusie en advies</h2>",
+    "<h2>7. Vervolgstappen en planning</h2> — als <ul>.",
+    "",
+    "INHOUD: volledig en concreet, elke sectie meerdere alinea's/punten; noem specifieke relevante Nederlandse normen en regelgeving (bv. WIBON/KLIC, CROW 500, NEN 3650/3651, NTA 8017, BRL SIKB, Wet natuurbescherming, Omgevingswet) passend bij dit onderzoekstype. Projectspecifiek (locatie, tracé, bevindingen), zakelijk Nederlands in de wij-vorm van de aannemer.",
   ]
     .filter(Boolean)
     .join("\n");
@@ -1056,8 +1063,8 @@ export async function* streamOnderzoekRapport(
 ): AsyncGenerator<string> {
   const client = await getClient();
   const stream = client.messages.stream({
-    model: await getModel(),
-    max_tokens: 3000,
+    model: await getModel("snel"),
+    max_tokens: 5000,
     system: ONDERZOEK_RAPPORT_SYSTEM,
     messages: [{ role: "user", content: bouwOnderzoekRapportPrompt(ctx, onderzoek, bevindingen, tracelengteM) }],
   });
@@ -1091,8 +1098,8 @@ async function onderzoekRapportClaude(
 ): Promise<{ bron: AdviesBron; tekst: string }> {
   const client = await getClient();
   const resp = await client.messages.create({
-    model: await getModel(),
-    max_tokens: 3000,
+    model: await getModel("snel"),
+    max_tokens: 5000,
     system: ONDERZOEK_RAPPORT_SYSTEM,
     messages: [{ role: "user", content: bouwOnderzoekRapportPrompt(ctx, onderzoek, bevindingen, tracelengteM) }],
   });
