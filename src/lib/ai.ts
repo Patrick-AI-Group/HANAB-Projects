@@ -1012,16 +1012,33 @@ function bouwOnderzoekRapportPrompt(
     .map((b) => `- ${b.thema}: ${typeof b.aantal === "number" ? b.aantal + " — " : ""}${b.samenvatting}`)
     .join("\n");
   return [
-    `Schrijf een professioneel, beknopt rapport voor het conditionerende onderzoek "${labelOnderzoek(onderzoek.type)}".`,
-    `Project: ${ctx.naam} (${labelProjectType(ctx.type)})${ctx.plaats ? ", " + ctx.plaats : ""}.`,
-    tracelengteM ? `Tracélengte: ca. ${tracelengteM} m.` : "",
-    ctx.omschrijving ? `Scope: ${ctx.omschrijving}.` : "",
-    onderzoek.uitvoerder ? `Uitvoerder: ${onderzoek.uitvoerder}.` : "",
+    `Schrijf een volledig, professioneel onderzoeksrapport voor het conditionerende onderzoek "${labelOnderzoek(onderzoek.type)}" bij een Nederlands ondergronds-infraproject.`,
     "",
-    data ? `Beschikbare open-data-bevindingen langs het tracé:\n${data}` : "",
+    "PROJECTGEGEVENS:",
+    `- Project: ${ctx.naam}`,
+    `- Type werk: ${labelProjectType(ctx.type)}`,
+    ctx.plaats ? `- Locatie: ${ctx.plaats}` : "",
+    ctx.opdrachtgever ? `- Opdrachtgever: ${ctx.opdrachtgever}` : "",
+    ctx.omschrijving ? `- Scope/omschrijving: ${ctx.omschrijving}` : "",
+    tracelengteM ? `- Tracélengte: ca. ${Math.round(tracelengteM)} m` : "",
+    onderzoek.uitvoerder ? `- Uitvoerder onderzoek: ${onderzoek.uitvoerder}` : "",
     "",
-    "Gebruik de secties: 1. AANLEIDING EN DOEL, 2. WERKWIJZE, 3. RESULTATEN, 4. CONCLUSIE EN ADVIES. " +
-      "Nederlands, zakelijk, concreet, met de relevante normen/regelgeving. Gebruik platte tekst met de genummerde koppen in hoofdletters (geen markdown).",
+    data ? `BESCHIKBARE OPEN-DATA-BEVINDINGEN LANGS HET TRACÉ (gebruik deze concreet in de resultaten):\n${data}` : "GEEN open-data-bevindingen aangeleverd; baseer de resultaten op de gangbare praktijk voor dit onderzoekstype.",
+    "",
+    "STRUCTUUR — gebruik exact deze genummerde secties, elke kop op een eigen regel in HOOFDLETTERS:",
+    "1. AANLEIDING EN DOEL",
+    "2. PROJECT- EN TRACÉGEGEVENS",
+    "3. ONDERZOEKSOPZET EN NORMKADER",
+    "4. RESULTATEN EN BEVINDINGEN",
+    "5. RISICO'S EN AANDACHTSPUNTEN",
+    "6. CONCLUSIE EN ADVIES",
+    "7. VERVOLGSTAPPEN EN PLANNING",
+    "",
+    "EISEN:",
+    "- Volledig en concreet: elke sectie meerdere alinea's; noem specifieke, relevante Nederlandse normen en regelgeving (bv. WIBON/KLIC, CROW 500, NEN 3650/3651, NTA 8017, BRL SIKB, Wet natuurbescherming, Omgevingswet) passend bij dit onderzoekstype.",
+    "- Gebruik opsommingen met '- ' voor concrete punten, stappen, risico's en vervolgacties.",
+    "- Projectspecifiek: verwijs naar de locatie, het tracé en de aangeleverde bevindingen; geen generieke borden.",
+    "- Zakelijk Nederlands, in de wij-vorm van de aannemer. Platte tekst, GEEN markdown-tekens (geen #, *, **, geen tabellen); alleen genummerde HOOFDLETTER-koppen en '- ' opsommingen.",
   ]
     .filter(Boolean)
     .join("\n");
@@ -1040,7 +1057,7 @@ export async function* streamOnderzoekRapport(
   const client = await getClient();
   const stream = client.messages.stream({
     model: await getModel(),
-    max_tokens: 1800,
+    max_tokens: 3000,
     system: ONDERZOEK_RAPPORT_SYSTEM,
     messages: [{ role: "user", content: bouwOnderzoekRapportPrompt(ctx, onderzoek, bevindingen, tracelengteM) }],
   });
@@ -1075,7 +1092,7 @@ async function onderzoekRapportClaude(
   const client = await getClient();
   const resp = await client.messages.create({
     model: await getModel(),
-    max_tokens: 1800,
+    max_tokens: 3000,
     system: ONDERZOEK_RAPPORT_SYSTEM,
     messages: [{ role: "user", content: bouwOnderzoekRapportPrompt(ctx, onderzoek, bevindingen, tracelengteM) }],
   });

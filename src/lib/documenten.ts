@@ -118,6 +118,12 @@ function wrap(titel: string, p: any, body: string, datum: string, opts: { soort?
   .badge-warn{background:#fef3c7;color:#92400e}
   .muted{color:#64748b}
   .pre{white-space:pre-wrap;background:#f8fafc;border:1px solid var(--grid);border-left:3px solid var(--navy2);border-radius:8px;padding:16px 18px;font-size:13px;line-height:1.65}
+  .rap p{margin:9px 0;color:#334155;font-size:13.5px;line-height:1.68}
+  .rap ul{list-style:none;margin:8px 0 12px;padding:0}
+  .rap ul li{position:relative;padding:4px 0 4px 20px;color:#334155;font-size:13.5px;line-height:1.55}
+  .rap ul li::before{content:"";position:absolute;left:3px;top:11px;width:6px;height:6px;border-radius:50%;background:var(--accent)}
+  .rap h2{font-size:15px;color:var(--navy);border-bottom:2px solid var(--grid);padding-bottom:5px;margin:22px 0 10px}
+  .rap h2 .nr{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;background:var(--navy);color:#fff;font-size:11px;font-weight:800;margin-right:9px;vertical-align:middle}
   footer{padding:16px 32px;color:#94a3b8;font-size:11px;border-top:1px solid var(--grid);display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px}
   a{color:var(--navy2)}
   figure{margin:0}
@@ -279,16 +285,89 @@ function bureauonderzoek(p: any, datum: string, kaartjeSvg?: string): string {
 }
 
 /** HANAB-huisstijl HTML-rapport voor één conditionerend onderzoek. */
-export function onderzoekRapportHtml(p: any, onderzoek: any, tekst: string, datum: string): string {
-  const meta =
-    `<table style="margin-bottom:14px"><tbody>` +
-    `<tr><th style="width:170px">Onderzoek</th><td>${esc(labelOnderzoek(onderzoek.type))}</td></tr>` +
-    `<tr><th>Uitvoerder</th><td>${esc(onderzoek.uitvoerder ?? "—")}</td></tr>` +
-    `<tr><th>Status</th><td><span class="badge">${esc(labelOnderzoekStatus(onderzoek.status))}</span></td></tr>` +
-    (onderzoek.ontvangstdatum ? `<tr><th>Ontvangen</th><td>${new Date(onderzoek.ontvangstdatum).toLocaleDateString("nl-NL")}</td></tr>` : "") +
-    `</tbody></table>`;
-  const body = meta + `<div class="pre">${esc(tekst)}</div>`;
-  return wrap(`Rapportage — ${labelOnderzoek(onderzoek.type)}`, p, body, datum, { soort: "Onderzoeksrapport" });
+/** Zet de platte rapporttekst (genummerde HOOFDLETTER-koppen + '- ' bullets) om
+ *  naar opgemaakte HTML met secties, lijsten en alinea's. */
+function rapportTekstNaarHtml(tekst: string): string {
+  const regels = tekst.replace(/\r/g, "").split("\n");
+  const out: string[] = [];
+  let inLijst = false;
+  const sluit = () => {
+    if (inLijst) {
+      out.push("</ul>");
+      inLijst = false;
+    }
+  };
+  for (const ruw of regels) {
+    const r = ruw.trim();
+    if (!r) {
+      sluit();
+      continue;
+    }
+    // Sectiekop: "1. AANLEIDING EN DOEL" — genummerd + (nagenoeg) hoofdletters.
+    const kop = r.match(/^(\d+)[.)]?\s+(.{3,})$/);
+    if (kop && kop[2] === kop[2].toUpperCase() && /[A-ZÀ-Þ]/.test(kop[2])) {
+      sluit();
+      const titel = kop[2].charAt(0) + kop[2].slice(1).toLowerCase();
+      out.push(`<h2><span class="nr">${esc(kop[1])}</span>${esc(titel)}</h2>`);
+      continue;
+    }
+    // Opsomming.
+    const bullet = r.match(/^[-•*]\s+(.*)$/);
+    if (bullet) {
+      if (!inLijst) {
+        out.push("<ul>");
+        inLijst = true;
+      }
+      out.push(`<li>${esc(bullet[1])}</li>`);
+      continue;
+    }
+    sluit();
+    out.push(`<p>${esc(r)}</p>`);
+  }
+  sluit();
+  return `<div class="rap">${out.join("")}</div>`;
+}
+
+export function onderzoekRapportHtml(
+  p: any,
+  onderzoek: any,
+  tekst: string,
+  datum: string,
+  opts: { bevindingen?: any[]; lengteM?: number } = {}
+): string {
+  const bevindingen = opts.bevindingen ?? [];
+  const gereed = onderzoekGereed(onderzoek.status);
+  const kpis: Kpi[] = [
+    { label: "Onderzoek", waarde: labelOnderzoek(onderzoek.type), icon: "⚑" },
+    { label: "Status", waarde: labelOnderzoekStatus(onderzoek.status), accent: gereed, icon: gereed ? "✓" : "…" },
+    { label: "Verplicht", waarde: onderzoek.verplicht ? "Ja" : "Nee", sub: "wettelijk / contractueel", icon: "§" },
+  ];
+  if (opts.lengteM) kpis.push({ label: "Tracélengte", waarde: `${Math.round(opts.lengteM)} m`, icon: "↔" });
+
+  const metaRijen = [
+    onderzoek.uitvoerder ? `<tr><th style="width:170px">Uitvoerder</th><td>${esc(onderzoek.uitvoerder)}</td></tr>` : "",
+    onderzoek.aanvraagdatum ? `<tr><th>Aangevraagd</th><td>${dstr(onderzoek.aanvraagdatum)}</td></tr>` : "",
+    onderzoek.ontvangstdatum ? `<tr><th>Ontvangen</th><td>${dstr(onderzoek.ontvangstdatum)}</td></tr>` : "",
+    onderzoek.verwachtKlaar ? `<tr><th>Verwacht gereed</th><td>${dstr(onderzoek.verwachtKlaar)}</td></tr>` : "",
+  ].filter(Boolean);
+  const metaTabel = metaRijen.length
+    ? `<table style="margin:4px 0 6px"><tbody>${metaRijen.join("")}</tbody></table>`
+    : "";
+
+  const bevindingenTabel = bevindingen.length
+    ? `<h2>Open-data-bevindingen langs het tracé</h2><table><thead><tr><th>Thema</th><th class="num">Aantal</th><th>Samenvatting</th></tr></thead><tbody>${bevindingen
+        .map(
+          (b: any) =>
+            `<tr><td>${esc(b.thema)}</td><td class="num">${typeof b.aantal === "number" ? b.aantal : "—"}</td><td>${esc(b.samenvatting)}</td></tr>`
+        )
+        .join("")}</tbody></table>`
+    : "";
+
+  const body = kpiKaarten(kpis) + metaTabel + rapportTekstNaarHtml(tekst) + bevindingenTabel;
+  return wrap(`Rapportage — ${labelOnderzoek(onderzoek.type)}`, p, body, datum, {
+    soort: "Onderzoeksrapport",
+    intro: `Conditionerend onderzoek voor project ${p.naam}${p.plaats ? " te " + p.plaats : ""}. Dit rapport onderbouwt de uitvoerbaarheid en de te nemen maatregelen conform de geldende normen en regelgeving.`,
+  });
 }
 
 function situatiekaart(p: any, datum: string, kaartjeSvg: string): string {
