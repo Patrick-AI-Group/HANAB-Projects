@@ -217,7 +217,7 @@ async function monitoringClaude(ctx: ProjectContext): Promise<MonitoringResultaa
     .join("\n");
 
   const resp = await client.messages.create({
-    model: await getModel(),
+    model: await getModel("snel"),
     max_tokens: 700,
     system:
       "Je bent werkvoorbereider ondergrondse infra. Geef een beknopte, zakelijke " +
@@ -605,7 +605,7 @@ export async function werktekeningAdvies(ctx: ProjectContext): Promise<TekeningR
 async function tekeningClaude(ctx: ProjectContext): Promise<TekeningResultaat> {
   const client = await getClient();
   const resp = await client.messages.create({
-    model: await getModel(),
+    model: await getModel("snel"),
     max_tokens: 3000,
     system:
       "Je bent werkvoorbereider/tekenaar ondergrondse infra. Je bepaalt welke werktekeningen nodig zijn voor de voorbereiding.",
@@ -689,7 +689,7 @@ export async function deelrevisieAdvies(ctx: ProjectContext): Promise<RevisieRes
 async function revisieClaude(ctx: ProjectContext): Promise<RevisieResultaat> {
   const client = await getClient();
   const resp = await client.messages.create({
-    model: await getModel(),
+    model: await getModel("snel"),
     max_tokens: 3000,
     system:
       "Je bent werkvoorbereider ondergrondse infra. Je bepaalt welke deelrevisies (as-built) opgeleverd moeten worden.",

@@ -1,9 +1,12 @@
 // Applicatie-instellingen (key/value in DB). Server-only.
 import { prisma } from "./db";
 
-// Sonnet 5 i.p.v. Opus: aanzienlijk sneller (~2-4x) voor deze gestructureerde
-// taken, zodat AI-acties ruim binnen de serverless-timeout blijven.
+// Sonnet 5 i.p.v. Opus: aanzienlijk sneller voor deze gestructureerde taken,
+// zodat AI-acties ruim binnen de serverless-timeout blijven.
 export const STANDAARD_MODEL = "claude-sonnet-5";
+// Haiku voor de simpele/korte acties (monitoring, tekening- en revisieadvies):
+// nog sneller en goedkoper, kwaliteit ruim voldoende voor standaardlijstjes.
+export const SNEL_MODEL = "claude-haiku-4-5";
 
 export async function getSetting(key: string): Promise<string | null> {
   const s = await prisma.setting.findUnique({ where: { key } });
@@ -26,9 +29,11 @@ export async function heeftApiKey(): Promise<boolean> {
   return (await getApiKey()) !== null;
 }
 
-export async function getModel(): Promise<string> {
+export async function getModel(tier: "standaard" | "snel" = "standaard"): Promise<string> {
+  // Een handmatig ingesteld model (instellingen) geldt overal en wint altijd.
   const m = await getSetting("ANTHROPIC_MODEL");
-  return m && m.trim() ? m.trim() : STANDAARD_MODEL;
+  if (m && m.trim()) return m.trim();
+  return tier === "snel" ? SNEL_MODEL : STANDAARD_MODEL;
 }
 
 /** Waar de sleutel vandaan komt, voor weergave in de UI. */
