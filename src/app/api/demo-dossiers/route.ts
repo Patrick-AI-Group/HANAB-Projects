@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 300;
+// 60s = maximum op Vercel Hobby (300 werkt alleen op Pro).
+export const maxDuration = 60;
 
 // Maakt 3 combi-projecten (water + elektra, ~500 m), doorloopt ze volledig en
 // genereert alle dossierdocumenten. Bedoeld om één keer aan te roepen.

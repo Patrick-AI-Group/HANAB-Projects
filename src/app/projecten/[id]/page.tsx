@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { OnderzoekStatusBadge } from "@/components/Badges";
+import { SubmitKnop } from "@/components/SubmitKnop";
 import {
   EENHEDEN,
   MBB_STATUS,
@@ -42,6 +43,9 @@ import {
 } from "@/app/actions";
 
 export const dynamic = "force-dynamic";
+// AI-acties (Claude) duren ~20-40s; verhoog de serverless-timeout zodat Vercel
+// de functie niet na de standaard 10s afkapt (max 60s op Hobby, 300s op Pro).
+export const maxDuration = 60;
 
 function fmt(d: Date | null) {
   return d ? d.toLocaleDateString("nl-NL") : "—";
@@ -82,15 +86,15 @@ export default async function ProjectIntake({ params }: { params: { id: string }
           <div className="flex gap-2">
             <form action={genereerOnderzoeksadvies}>
               <input type="hidden" name="projectId" value={project.id} />
-              <button className="btn-accent" type="submit" title="Laat AI benodigde onderzoeken adviseren">
+              <SubmitKnop title="Laat AI benodigde onderzoeken adviseren" bezigLabel="AI adviseert…">
                 ✨ AI-onderzoeksadvies
-              </button>
+              </SubmitKnop>
             </form>
             <form action={genereerMonitoring}>
               <input type="hidden" name="projectId" value={project.id} />
-              <button className="btn-ghost" type="submit" title="AI-duiding op voortgang en risico's">
+              <SubmitKnop className="btn-ghost" title="AI-duiding op voortgang en risico's" bezigLabel="AI analyseert…">
                 AI-monitoring
-              </button>
+              </SubmitKnop>
             </form>
           </div>
         </div>
@@ -128,9 +132,9 @@ export default async function ProjectIntake({ params }: { params: { id: string }
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       <form action={genereerOnderzoekRapport}>
                         <input type="hidden" name="onderzoekId" value={o.id} />
-                        <button className="btn-ghost px-2.5 py-1 text-xs" type="submit">
+                        <SubmitKnop className="btn-ghost px-2.5 py-1 text-xs" bezigLabel="AI schrijft…">
                           ✨ {o.rapport ? "Rapport opnieuw genereren" : "Genereer AI-rapport"}
-                        </button>
+                        </SubmitKnop>
                       </form>
                       {o.rapportPad && (
                         <a
@@ -249,9 +253,9 @@ export default async function ProjectIntake({ params }: { params: { id: string }
             )}
             <form action={genereerVoca}>
               <input type="hidden" name="projectId" value={project.id} />
-              <button className="btn-accent" type="submit" title="Genereer voorcalculatie met AI">
+              <SubmitKnop title="Genereer voorcalculatie met AI" bezigLabel="AI rekent…">
                 ✨ AI-voorcalculatie
-              </button>
+              </SubmitKnop>
             </form>
           </div>
         </div>
@@ -391,9 +395,9 @@ export default async function ProjectIntake({ params }: { params: { id: string }
             )}
             <form action={genereerMBB}>
               <input type="hidden" name="projectId" value={project.id} />
-              <button className="btn-accent" type="submit" title="Stel materiaalbestellingenbestand samen">
+              <SubmitKnop title="Stel materiaalbestellingenbestand samen" bezigLabel="AI stelt samen…">
                 ✨ MBB samenstellen
-              </button>
+              </SubmitKnop>
             </form>
           </div>
         </div>
@@ -507,9 +511,9 @@ export default async function ProjectIntake({ params }: { params: { id: string }
           </div>
           <form action={genereerWerktekeningen}>
             <input type="hidden" name="projectId" value={project.id} />
-            <button className="btn-accent" type="submit" title="Laat AI de benodigde werktekeningen bepalen">
+            <SubmitKnop title="Laat AI de benodigde werktekeningen bepalen" bezigLabel="AI bepaalt…">
               ✨ AI-tekeningadvies
-            </button>
+            </SubmitKnop>
           </form>
         </div>
 
@@ -630,9 +634,9 @@ export default async function ProjectIntake({ params }: { params: { id: string }
           </div>
           <form action={genereerDossierDocumentenAction}>
             <input type="hidden" name="projectId" value={project.id} />
-            <button className="btn-accent" type="submit" title="Genereer/ververs alle dossierdocumenten">
+            <SubmitKnop title="Genereer/ververs alle dossierdocumenten" bezigLabel="Documenten genereren…">
               📄 Genereer dossierdocumenten
-            </button>
+            </SubmitKnop>
           </form>
         </div>
 

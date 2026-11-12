@@ -1,10 +1,13 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { SubmitKnop } from "@/components/SubmitKnop";
 import { MapTrace } from "@/components/MapTrace";
 import { genereerBureauonderzoek, onderzoekenUitBureauonderzoek, snapTraceAanDeWeg } from "@/app/actions";
 import { traceCoords, traceLengteMeter, type BronBevinding } from "@/lib/opendata";
 
 export const dynamic = "force-dynamic";
+// Bureauonderzoek (Claude + externe bronnen) kan ~20-40s duren.
+export const maxDuration = 60;
 
 function fmtTijd(d: Date | null) {
   return d ? d.toLocaleString("nl-NL", { dateStyle: "short", timeStyle: "short" }) : "—";
@@ -80,14 +83,13 @@ export default async function ProjectKaart({ params }: { params: { id: string } 
             )}
             <form action={genereerBureauonderzoek}>
               <input type="hidden" name="projectId" value={project.id} />
-              <button
-                className="btn-accent disabled:cursor-not-allowed"
-                type="submit"
+              <SubmitKnop
                 disabled={!heeftTrace}
+                bezigLabel="Open bronnen raadplegen…"
                 title={heeftTrace ? "Raadpleeg open data en genereer rapport" : "Teken en bewaar eerst een tracé"}
               >
                 ✨ Genereer bureauonderzoek
-              </button>
+              </SubmitKnop>
             </form>
           </div>
         </div>

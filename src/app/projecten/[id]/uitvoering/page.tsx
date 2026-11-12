@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { SubmitKnop } from "@/components/SubmitKnop";
 import {
   DEELBETALING_STATUS,
   DEELBETALING_STATUS_KLEUR,
@@ -31,6 +32,8 @@ import {
 } from "@/app/actions";
 
 export const dynamic = "force-dynamic";
+// AI-acties (Claude) kunnen ~20-40s duren; verhoog de serverless-timeout.
+export const maxDuration = 60;
 
 function fmt(d: Date | null) {
   return d ? d.toLocaleDateString("nl-NL") : "—";
@@ -65,9 +68,9 @@ export default async function ProjectUitvoering({ params }: { params: { id: stri
           </div>
           <form action={maakWeekproductie}>
             <input type="hidden" name="projectId" value={project.id} />
-            <button className="btn-accent" type="submit" title="Nieuwe weekproductie (huidige week, voorgevuld uit VOCA)">
+            <SubmitKnop title="Nieuwe weekproductie (huidige week, voorgevuld uit VOCA)" bezigLabel="Bezig…">
               + Nieuwe weekproductie
-            </button>
+            </SubmitKnop>
           </form>
         </div>
 
@@ -205,9 +208,9 @@ export default async function ProjectUitvoering({ params }: { params: { id: stri
           </div>
           <form action={genereerDeelbetaling}>
             <input type="hidden" name="projectId" value={project.id} />
-            <button className="btn-accent" type="submit" title="Bereken nieuwe termijn uit gerealiseerde productie">
+            <SubmitKnop title="Bereken nieuwe termijn uit gerealiseerde productie" bezigLabel="Bezig…">
               + Genereer termijn
-            </button>
+            </SubmitKnop>
           </form>
         </div>
 
@@ -316,9 +319,9 @@ export default async function ProjectUitvoering({ params }: { params: { id: stri
           </div>
           <form action={genereerDeelrevisies}>
             <input type="hidden" name="projectId" value={project.id} />
-            <button className="btn-accent" type="submit" title="Laat AI de benodigde deelrevisies bepalen">
+            <SubmitKnop title="Laat AI de benodigde deelrevisies bepalen" bezigLabel="AI bepaalt…">
               ✨ AI-revisieadvies
-            </button>
+            </SubmitKnop>
           </form>
         </div>
 

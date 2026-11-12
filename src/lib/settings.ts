@@ -1,7 +1,9 @@
 // Applicatie-instellingen (key/value in DB). Server-only.
 import { prisma } from "./db";
 
-export const STANDAARD_MODEL = "claude-opus-4-8";
+// Sonnet 5 i.p.v. Opus: aanzienlijk sneller (~2-4x) voor deze gestructureerde
+// taken, zodat AI-acties ruim binnen de serverless-timeout blijven.
+export const STANDAARD_MODEL = "claude-sonnet-5";
 
 export async function getSetting(key: string): Promise<string | null> {
   const s = await prisma.setting.findUnique({ where: { key } });

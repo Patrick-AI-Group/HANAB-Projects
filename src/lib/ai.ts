@@ -58,21 +58,65 @@ async function getClient() {
   const key = await getApiKey();
   const mod = await import("@anthropic-ai/sdk");
   const Anthropic = mod.default;
-  return new Anthropic({ apiKey: key ?? undefined });
+  // Harde timeout + geen retries: een trage AI-call faalt snel en valt terug op
+  // de lokale generator i.p.v. de UI (App Router) minutenlang te blokkeren.
+  return new Anthropic({ apiKey: key ?? undefined, timeout: 45_000, maxRetries: 0 });
 }
 
-/** Haalt een JSON-array uit een tekstrespons (verwijdert eventuele codeblokken). */
+/**
+ * Haalt een JSON-array uit een tekstrespons. Robuust tegen codeblokken,
+ * omringende tekst en — belangrijk — tegen afgekapte JSON (bijv. als een
+ * thinking-blok een deel van max_tokens opslokt). Verzamelt in dat geval de
+ * losse, complete {…}-objecten i.p.v. alles te laten mislukken.
+ */
 function parseJsonArray(text: string): any[] | null {
   const schoon = text.replace(/```json/gi, "```").replace(/```/g, "").trim();
   const start = schoon.indexOf("[");
+  if (start === -1) return null;
+
+  // Snelle route: de hele array parst in één keer.
   const eind = schoon.lastIndexOf("]");
-  if (start === -1 || eind === -1 || eind < start) return null;
-  try {
-    const parsed = JSON.parse(schoon.slice(start, eind + 1));
-    return Array.isArray(parsed) ? parsed : null;
-  } catch {
-    return null;
+  if (eind > start) {
+    try {
+      const parsed = JSON.parse(schoon.slice(start, eind + 1));
+      if (Array.isArray(parsed)) return parsed;
+    } catch {
+      /* val terug op de tolerante scanner hieronder */
+    }
   }
+
+  // Tolerante route: loop door de tekst en verzamel elk compleet top-level
+  // {…}-object. Een afgekapt laatste object wordt simpelweg overgeslagen.
+  const objecten: any[] = [];
+  let diepte = 0;
+  let objStart = -1;
+  let inString = false;
+  let escape = false;
+  for (let i = start + 1; i < schoon.length; i++) {
+    const c = schoon[i];
+    if (inString) {
+      if (escape) escape = false;
+      else if (c === "\\") escape = true;
+      else if (c === '"') inString = false;
+      continue;
+    }
+    if (c === '"') inString = true;
+    else if (c === "{") {
+      if (diepte === 0) objStart = i;
+      diepte++;
+    } else if (c === "}") {
+      if (diepte > 0) diepte--;
+      if (diepte === 0 && objStart !== -1) {
+        try {
+          objecten.push(JSON.parse(schoon.slice(objStart, i + 1)));
+        } catch {
+          /* sla onparseerbaar object over */
+        }
+        objStart = -1;
+      }
+    }
+  }
+  return objecten.length ? objecten : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -119,11 +163,9 @@ async function onderzoeksadviesClaude(ctx: ProjectContext): Promise<AdviesResult
 
   const resp = await client.messages.create({
     model: await getModel(),
-    max_tokens: 2000,
+    max_tokens: 4000,
     system: systemPrompt,
     messages: [{ role: "user", content: userPrompt }],
-    // Adaptive thinking (nieuwer API-veld; cast i.v.m. SDK-typings).
-    ...({ thinking: { type: "adaptive" } } as Record<string, unknown>),
   });
 
   const tekst = resp.content
@@ -177,7 +219,6 @@ async function monitoringClaude(ctx: ProjectContext): Promise<MonitoringResultaa
   const resp = await client.messages.create({
     model: await getModel(),
     max_tokens: 700,
-    ...({ thinking: { type: "adaptive" } } as Record<string, unknown>),
     system:
       "Je bent werkvoorbereider ondergrondse infra. Geef een beknopte, zakelijke " +
       "voortgangs- en risicoduiding op de conditionerende onderzoeken. Noem wat " +
@@ -347,11 +388,10 @@ async function vocaClaude(ctx: ProjectContext): Promise<VocaResultaat> {
 
   const resp = await client.messages.create({
     model: await getModel(),
-    max_tokens: 2500,
+    max_tokens: 4000,
     system:
       "Je bent calculator bij een Nederlandse aannemer ondergrondse infra. Je maakt realistische voorcalculaties met marktconforme eenheidsprijzen.",
     messages: [{ role: "user", content: userPrompt }],
-    ...({ thinking: { type: "adaptive" } } as Record<string, unknown>),
   });
 
   const tekst = resp.content
@@ -478,7 +518,7 @@ async function mbbClaude(ctx: ProjectContext): Promise<MateriaalResultaat> {
   const client = await getClient();
   const resp = await client.messages.create({
     model: await getModel(),
-    max_tokens: 1500,
+    max_tokens: 3000,
     system:
       "Je bent inkoper/werkvoorbereider ondergrondse infra. Je stelt een materiaalbestellingenbestand op.",
     messages: [
@@ -496,7 +536,6 @@ async function mbbClaude(ctx: ProjectContext): Promise<MateriaalResultaat> {
           .join("\n"),
       },
     ],
-    ...({ thinking: { type: "adaptive" } } as Record<string, unknown>),
   });
   const tekst = resp.content
     .filter((b: any) => b.type === "text")
@@ -567,7 +606,7 @@ async function tekeningClaude(ctx: ProjectContext): Promise<TekeningResultaat> {
   const client = await getClient();
   const resp = await client.messages.create({
     model: await getModel(),
-    max_tokens: 1500,
+    max_tokens: 3000,
     system:
       "Je bent werkvoorbereider/tekenaar ondergrondse infra. Je bepaalt welke werktekeningen nodig zijn voor de voorbereiding.",
     messages: [
@@ -585,7 +624,6 @@ async function tekeningClaude(ctx: ProjectContext): Promise<TekeningResultaat> {
           .join("\n"),
       },
     ],
-    ...({ thinking: { type: "adaptive" } } as Record<string, unknown>),
   });
   const tekst = resp.content
     .filter((b: any) => b.type === "text")
@@ -652,7 +690,7 @@ async function revisieClaude(ctx: ProjectContext): Promise<RevisieResultaat> {
   const client = await getClient();
   const resp = await client.messages.create({
     model: await getModel(),
-    max_tokens: 1200,
+    max_tokens: 3000,
     system:
       "Je bent werkvoorbereider ondergrondse infra. Je bepaalt welke deelrevisies (as-built) opgeleverd moeten worden.",
     messages: [
@@ -670,7 +708,6 @@ async function revisieClaude(ctx: ProjectContext): Promise<RevisieResultaat> {
           .join("\n"),
       },
     ],
-    ...({ thinking: { type: "adaptive" } } as Record<string, unknown>),
   });
   const tekst = resp.content
     .filter((b: any) => b.type === "text")
@@ -772,7 +809,6 @@ async function rapportClaude(
     system:
       "Je bent adviseur conditionerende onderzoeken bij een Nederlandse aannemer ondergrondse infra. Je schrijft heldere, bruikbare bureauonderzoeksrapporten.",
     messages: [{ role: "user", content: userPrompt }],
-    ...({ thinking: { type: "adaptive" } } as Record<string, unknown>),
   });
   const tekst = resp.content
     .filter((b: any) => b.type === "text")
@@ -993,7 +1029,6 @@ async function onderzoekRapportClaude(
     system:
       "Je bent adviseur conditionerende onderzoeken bij een Nederlandse aannemer ondergrondse infra. Je schrijft heldere, bruikbare onderzoeksrapporten.",
     messages: [{ role: "user", content: userPrompt }],
-    ...({ thinking: { type: "adaptive" } } as Record<string, unknown>),
   });
   const tekst = resp.content
     .filter((b: any) => b.type === "text")

@@ -63,7 +63,7 @@ export default async function Instellingen() {
             </label>
             <input id="model" name="model" className="input font-mono" defaultValue={model} placeholder={STANDAARD_MODEL} />
             <p className="mt-1 text-xs text-slate-500">
-              Standaard <code>{STANDAARD_MODEL}</code>. Andere opties: <code>claude-sonnet-5</code>, <code>claude-haiku-4-5</code>.
+              Standaard <code>{STANDAARD_MODEL}</code>. Andere opties: <code>claude-haiku-4-5</code> (sneller), <code>claude-opus-4-8</code> (grondiger, maar trager).
             </p>
           </div>
           <div className="flex items-center gap-3 pt-1">
