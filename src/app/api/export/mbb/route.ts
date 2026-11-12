@@ -1,7 +1,5 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { mbbXlsx } from "@/lib/export-xlsx";
-import { mbbPdf } from "@/lib/export-tabelpdf";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +17,7 @@ export async function GET(req: NextRequest) {
   const veilig = project.projectnummer.replace(/[^a-zA-Z0-9_-]/g, "_");
 
   if (format === "xlsx") {
+    const { mbbXlsx } = await import("@/lib/export-xlsx");
     const buf = await mbbXlsx(project);
     return new Response(new Uint8Array(buf), {
       headers: {
@@ -28,6 +27,7 @@ export async function GET(req: NextRequest) {
     });
   }
 
+  const { mbbPdf } = await import("@/lib/export-tabelpdf");
   const buf = await mbbPdf(project);
   return new Response(new Uint8Array(buf), {
     headers: {

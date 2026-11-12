@@ -1,10 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { vulEnVoltooiProject, schrijfDossier } from "@/lib/dossier";
-import { haalBevindingen, traceCoords, traceLengteMeter } from "@/lib/opendata";
-import { bureauonderzoekRapport } from "@/lib/ai";
-import { volgDeWeg, naarTraceGeoJson } from "@/lib/routing";
-import { schrijfOnderzoekRapport } from "@/lib/onderzoekrapport";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -14,6 +9,14 @@ export const maxDuration = 300;
 // Met ?regen=1 worden het bureauonderzoek (verse open data) én de documenten
 // van bestaande projecten herbouwd.
 export async function GET(req: NextRequest) {
+  // Zware libs (pdfkit/docx/archiver/exceljs via de dossier-keten) pas bij een
+  // request laden, niet tijdens de build-fase "collect page data".
+  const { vulEnVoltooiProject, schrijfDossier } = await import("@/lib/dossier");
+  const { haalBevindingen, traceCoords, traceLengteMeter } = await import("@/lib/opendata");
+  const { bureauonderzoekRapport } = await import("@/lib/ai");
+  const { volgDeWeg, naarTraceGeoJson } = await import("@/lib/routing");
+  const { schrijfOnderzoekRapport } = await import("@/lib/onderzoekrapport");
+
   if (req.nextUrl.searchParams.get("rapporten") === "1") {
     const onderzoeken = await prisma.conditionerendOnderzoek.findMany({ select: { id: true } });
     let n = 0;
