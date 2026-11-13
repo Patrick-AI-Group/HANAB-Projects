@@ -183,7 +183,8 @@ function productiePerPost(project: any): { omschrijving: string; eenheid: string
       else kaart.set(sleutel, { omschrijving: r.omschrijving, eenheid: r.eenheid, gerealiseerd: r.gerealiseerd, eenheidsprijs: r.eenheidsprijs });
     }
   }
-  return [...kaart.values()];
+  // Afronden op max. 2 decimalen — voorkomt floating-point-staarten (bv. 289,79999…) in de afrekenstaat.
+  return [...kaart.values()].map((p) => ({ ...p, gerealiseerd: Math.round(p.gerealiseerd * 100) / 100 }));
 }
 
 // Deelafrekenstaat (termijnafrekening) voor één deelbetaling, met productie-onderbouwing.

@@ -90,7 +90,10 @@ function productiePerPost(project: any) {
       else kaart.set(sleutel, { omschrijving: r.omschrijving, eenheid: r.eenheid, gerealiseerd: r.gerealiseerd, eenheidsprijs: r.eenheidsprijs });
     }
   }
-  return [...kaart.values()].filter((p) => p.gerealiseerd !== 0);
+  // Afronden op max. 2 decimalen — voorkomt floating-point-staarten in de afrekenstaat.
+  return [...kaart.values()]
+    .map((p) => ({ ...p, gerealiseerd: Math.round(p.gerealiseerd * 100) / 100 }))
+    .filter((p) => p.gerealiseerd !== 0);
 }
 
 export async function deelafrekeningXlsx(deelbetaling: any): Promise<Buffer> {
@@ -121,6 +124,7 @@ export async function deelafrekeningXlsx(deelbetaling: any): Promise<Buffer> {
     const row = ws.getRow(rr);
     row.values = [p.omschrijving, p.eenheid, p.gerealiseerd, p.eenheidsprijs, p.gerealiseerd * p.eenheidsprijs];
     row.getCell(3).alignment = { horizontal: "right" };
+    row.getCell(3).numFmt = "#,##0.##";
     row.getCell(4).numFmt = '"€" #,##0.00';
     row.getCell(5).numFmt = '"€" #,##0.00';
     if ((rr - headerRow) % 2 === 0) {
