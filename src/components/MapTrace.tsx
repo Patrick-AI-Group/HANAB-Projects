@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import "leaflet/dist/leaflet.css";
 import { opslaanTrace } from "@/app/actions";
+import { dxfNaarTrace, gesimuleerdTrace } from "@/lib/dxf";
 
 type LngLat = [number, number]; // [lon, lat] — GeoJSON-volgorde
 
@@ -35,10 +36,12 @@ export function MapTrace({
   const lineRef = useRef<any>(null);
   const markersRef = useRef<any>(null);
   const drawingRef = useRef(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const [pts, setPts] = useState<LngLat[]>([]);
   const [tekenen, setTekenen] = useState(false);
   const [klaar, setKlaar] = useState(false);
+  const [uploadInfo, setUploadInfo] = useState<string | null>(null);
 
   // Init kaart (één keer)
   useEffect(() => {
@@ -158,6 +161,44 @@ export function MapTrace({
   });
   const lengte = lengteMeter(pts);
 
+  // Plaats een ingelezen tracé op de kaart en zoom ernaartoe.
+  function zetTrace(nieuw: LngLat[]) {
+    setTekenen(false);
+    setPts(nieuw);
+    const map = mapRef.current;
+    if (map && nieuw.length >= 2) {
+      map.fitBounds(nieuw.map(([lon, lat]) => [lat, lon]) as any, { padding: [40, 40] });
+    }
+  }
+
+  // Huidig kaartmidden als ankerpunt voor de projectie (fallback NL-midden).
+  function anker(): LngLat {
+    const c = mapRef.current?.getCenter?.();
+    return c ? [c.lng, c.lat] : [5.38, 52.15];
+  }
+
+  // DXF-upload (demo): lees de tekening, haal de lijnketen eruit en leg die op
+  // de kaart. Lukt parsen niet, dan een gesimuleerd tracé — zo werkt de demo altijd.
+  async function onDxf(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // zelfde bestand opnieuw kunnen kiezen
+    if (!file) return;
+    try {
+      const tekst = await file.text();
+      const uitDxf = dxfNaarTrace(tekst, anker());
+      if (uitDxf && uitDxf.length >= 2) {
+        zetTrace(uitDxf);
+        setUploadInfo(`Tracé uit ${file.name} ingelezen (${uitDxf.length} punten, gesimuleerde demo).`);
+        return;
+      }
+      zetTrace(gesimuleerdTrace(anker()));
+      setUploadInfo(`Geen leesbare geometrie in ${file.name}; gesimuleerd tracé geplaatst (demo).`);
+    } catch {
+      zetTrace(gesimuleerdTrace(anker()));
+      setUploadInfo("DXF kon niet gelezen worden; gesimuleerd tracé geplaatst (demo).");
+    }
+  }
+
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -179,10 +220,35 @@ export function MapTrace({
         <button type="button" onClick={() => setPts([])} disabled={pts.length === 0} className="btn-ghost">
           Wissen
         </button>
+
+        <span className="mx-1 h-6 w-px bg-slate-300" aria-hidden />
+
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".dxf,application/dxf,image/vnd.dxf"
+          onChange={onDxf}
+          className="hidden"
+        />
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          className="btn-ghost"
+          title="Lees een tracé in uit een DXF-tekening (demo — gesimuleerd)"
+        >
+          ⬆️ DXF uploaden
+        </button>
+
         <span className="ml-auto text-sm text-slate-600">
           {pts.length} punten · <strong>{lengte} m</strong>
         </span>
       </div>
+
+      {uploadInfo && (
+        <p className="rounded-lg bg-hanab-light/40 px-3 py-2 text-xs text-hanab-900 ring-1 ring-hanab-900/15">
+          {uploadInfo}
+        </p>
+      )}
 
       <div
         ref={divRef}
