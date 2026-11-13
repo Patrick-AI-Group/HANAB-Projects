@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { OnderzoekStatusBadge, ProjectStatusBadge } from "@/components/Badges";
 import { Icon } from "@/components/visuals";
 import {
+  euro,
   labelOnderzoek,
   labelProjectType,
   onderzoekGereed,
@@ -30,13 +31,41 @@ export default async function Dashboard({
 }) {
   const projecten = await prisma.project.findMany({
     orderBy: { updatedAt: "desc" },
-    include: { onderzoeken: true },
+    include: {
+      onderzoeken: true,
+      weekproducties: { include: { regels: true } },
+      deelbetalingen: true,
+    },
   });
 
   const totaalProjecten = projecten.length;
   const alleOnderzoeken = projecten.flatMap((p) => p.onderzoeken);
   const openOnderzoeken = alleOnderzoeken.filter((o) => onderzoekOpenstaand(o.status)).length;
   const inIntake = projecten.filter((p) => p.status === "INTAKE" || p.status === "VOORBEREIDING").length;
+
+  // Financiële voortgang: gerealiseerde productie verdeeld naar afrekenstatus.
+  const alleTermijnen = projecten.flatMap((p) => p.deelbetalingen);
+  const gerealiseerd = projecten
+    .flatMap((p) => p.weekproducties.flatMap((w) => w.regels))
+    .reduce((s, r) => s + r.gerealiseerd * r.eenheidsprijs, 0);
+  const somStatus = (statussen: string[]) =>
+    alleTermijnen.filter((d) => statussen.includes(d.status)).reduce((s, d) => s + d.bedrag, 0);
+  const afgerekend = somStatus(["BETAALD"]);
+  const ingediend = somStatus(["INGEDIEND", "GOEDGEKEURD"]);
+  const nogInTeDienen = somStatus(["CONCEPT"]);
+  const opgenomen = afgerekend + ingediend + nogInTeDienen;
+  const onderhandenWerk = Math.max(0, gerealiseerd - opgenomen);
+  // Basis voor de verdeelbalk: afgerekend+ingediend+nog-in-te-dienen+OHW telt hiernaar op,
+  // ook wanneer termijnen (over)gefactureerd zijn t.o.v. de gerealiseerde productie.
+  const balkBasis = Math.max(gerealiseerd, opgenomen, 1);
+  const pct = (bedrag: number) => `${(bedrag / balkBasis) * 100}%`;
+
+  const finTegels = [
+    { label: "Afgerekend", sub: "betaald", waarde: afgerekend, balk: "bg-emerald-500", stip: "bg-emerald-500" },
+    { label: "Ingediend", sub: "in behandeling", waarde: ingediend, balk: "bg-amber-400", stip: "bg-amber-400" },
+    { label: "Nog in te dienen", sub: "concept-termijnen", waarde: nogInTeDienen, balk: "bg-slate-400", stip: "bg-slate-400" },
+    { label: "Onderhanden werk", sub: "nog niet in termijn", waarde: onderhandenWerk, balk: "bg-hanab-accent", stip: "bg-hanab-accent" },
+  ];
 
   const ruwFilter = searchParams.filter;
   const filter: Filter | null =
@@ -118,6 +147,43 @@ export default async function Dashboard({
             </div>
           </Link>
         ))}
+      </div>
+
+      {/* Financiële voortgang */}
+      <div className="card p-5">
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="font-semibold">Financiële voortgang</h2>
+            <p className="text-xs text-slate-500">
+              Gerealiseerde productie over alle projecten, verdeeld naar afrekenstatus
+            </p>
+          </div>
+          <div className="text-right">
+            <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Gerealiseerd</div>
+            <div className="text-2xl font-bold tabular-nums text-hanab-900">{euro(gerealiseerd)}</div>
+          </div>
+        </div>
+
+        {(gerealiseerd > 0 || opgenomen > 0) && (
+          <div className="mb-5 flex h-3 overflow-hidden rounded-full bg-slate-100 ring-1 ring-slate-200">
+            {finTegels.map((t) =>
+              t.waarde > 0 ? <div key={t.label} className={t.balk} style={{ width: pct(t.waarde) }} title={`${t.label}: ${euro(t.waarde)}`} /> : null,
+            )}
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {finTegels.map((t) => (
+            <div key={t.label} className="rounded-lg bg-slate-50 p-3 ring-1 ring-slate-200">
+              <div className="flex items-center gap-1.5">
+                <span className={`h-2 w-2 shrink-0 rounded-full ${t.stip}`} />
+                <span className="text-xs font-medium text-slate-600">{t.label}</span>
+              </div>
+              <div className="mt-1 text-lg font-semibold tabular-nums text-hanab-900">{euro(t.waarde)}</div>
+              <div className="text-[11px] text-slate-400">{t.sub}</div>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="card overflow-hidden">
