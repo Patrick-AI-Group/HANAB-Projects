@@ -1032,9 +1032,9 @@ function bouwOnderzoekRapportPrompt(
     "",
     "LEVER UITSLUITEND EEN HTML-FRAGMENT. Regels:",
     "- Gebruik alleen deze tags: <h2>, <h3>, <p>, <ul>, <li>, <strong>, <table>, <thead>, <tbody>, <tr>, <th>, <td>.",
-    "- GEEN <html>, <head>, <body>, <script>, <style>; GEEN inline style-attributen; GEEN markdown (#, *, **).",
-    "- Elke sectie begint met een <h2>. Sluit ALLE tags correct af en maak ALLE secties volledig af.",
-    "- LENGTE: circa 1000–1200 woorden in totaal — samen met de situatiekaart, KPI's en tabellen in de opmaak vormt dit minimaal 3 pagina's A4. Schrijf per hoofdsectie 2-3 volwaardige alinea's (geen telegramstijl). BELANGRIJK: rond BINNEN deze lengte ALLE 8 secties volledig af — verdeel je ruimte, een compleet rapport is belangrijker dan lange losse secties. Begin direct met sectie 1, geen inleidende tekst ervoor.",
+    "- GEEN <html>, <head>, <body>, <div>, <script>, <style>; GEEN inline style-attributen; GEEN markdown (#, *, **) en GEEN codefences (```). Begin direct met <h2>.",
+    "- Elke sectie begint met een <h2>. Sluit ALLE tags correct af en maak ALLE 8 secties volledig af.",
+    "- LENGTE: UITGEBREID — circa 1100–1300 woorden in totaal (samen met de situatiekaart, KPI's en tabellen in de opmaak vormt dit minimaal 3 pagina's A4). Schrijf per hoofdsectie 2-3 volwaardige alinea's (geen telegramstijl) en rond alle 8 secties volledig af.",
     "",
     "SECTIES (elk een <h2>):",
     "<h2>1. Aanleiding en doel</h2> — 2-3 alinea's: context van het project, waarom dit onderzoek nodig is, wettelijke/contractuele basis.",
@@ -1065,7 +1065,7 @@ export async function* streamOnderzoekRapport(
   const client = await getClient();
   const stream = client.messages.stream({
     model: await getModel("snel"),
-    max_tokens: 5500,
+    max_tokens: 6000,
     system: ONDERZOEK_RAPPORT_SYSTEM,
     messages: [{ role: "user", content: bouwOnderzoekRapportPrompt(ctx, onderzoek, bevindingen, tracelengteM) }],
   });
@@ -1100,7 +1100,7 @@ async function onderzoekRapportClaude(
   const client = await getClient();
   const resp = await client.messages.create({
     model: await getModel("snel"),
-    max_tokens: 5500,
+    max_tokens: 6000,
     system: ONDERZOEK_RAPPORT_SYSTEM,
     messages: [{ role: "user", content: bouwOnderzoekRapportPrompt(ctx, onderzoek, bevindingen, tracelengteM) }],
   });
