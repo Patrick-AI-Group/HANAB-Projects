@@ -241,6 +241,7 @@ export default async function ProjectUitvoering({ params }: { params: { id: stri
                   <th className="px-3 py-2.5 font-medium">Omschrijving</th>
                   <th className="px-3 py-2.5 text-right font-medium">Bedrag</th>
                   <th className="px-3 py-2.5 font-medium">Status</th>
+                  <th className="px-3 py-2.5 font-medium">Afrekenstaat</th>
                   <th className="px-3 py-2.5"></th>
                 </tr>
               </thead>
@@ -270,6 +271,24 @@ export default async function ProjectUitvoering({ params }: { params: { id: stri
                           OK
                         </button>
                       </form>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center gap-2">
+                        <a
+                          href={`/api/export/deelafrekening?deelbetalingId=${d.id}&format=pdf`}
+                          className="btn-ghost px-2 py-1 text-xs"
+                          title="Deelafrekenstaat als PDF"
+                        >
+                          ⬇ PDF
+                        </a>
+                        <a
+                          href={`/api/export/deelafrekening?deelbetalingId=${d.id}&format=xlsx`}
+                          className="btn-ghost px-2 py-1 text-xs"
+                          title="Deelafrekenstaat als Excel"
+                        >
+                          ⬇ Excel
+                        </a>
+                      </div>
                     </td>
                     <td className="px-3 py-2.5 text-right">
                       <form action={verwijderDeelbetaling}>
