@@ -30,16 +30,10 @@ export default async function ProjectLayout({
   const verplichtOpen = project.onderzoeken.filter((o) => o.verplicht && !onderzoekGereed(o.status)).length;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <Link href="/" className="text-sm text-hanab-700 hover:underline">
-          ← Dashboard
-        </Link>
-      </div>
-
+    <div className="space-y-4">
       <div className="card overflow-hidden">
-        {/* Cover-banner met HANAB-beeld per werktype */}
-        <div className="relative h-40">
+        {/* Compacte cover-banner met HANAB-beeld per werktype */}
+        <div className="relative h-24">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={
@@ -52,65 +46,62 @@ export default async function ProjectLayout({
             alt=""
             className="absolute inset-0 h-full w-full object-cover"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-hanab-900 via-hanab-900/70 to-hanab-900/25" />
-          <div className="absolute inset-x-0 bottom-0 p-6">
-            <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-2xl font-bold tracking-tight text-white drop-shadow-sm">{project.naam}</h1>
+          <div className="absolute inset-0 bg-gradient-to-t from-hanab-900 via-hanab-900/75 to-hanab-900/30" />
+          <Link
+            href="/"
+            className="absolute left-4 top-2.5 text-xs font-medium text-white/80 drop-shadow hover:text-white"
+          >
+            ← Dashboard
+          </Link>
+          <div className="absolute inset-x-0 bottom-0 px-4 pb-2.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-xl font-bold tracking-tight text-white drop-shadow-sm">{project.naam}</h1>
               <ProjectStatusBadge status={project.status} />
             </div>
-            <p className="mt-1 text-sm text-slate-200">
+            <p className="mt-0.5 truncate text-xs text-slate-200">
               {project.projectnummer} · {project.opdrachtgever} · {labelProjectType(project.type)}
               {project.plaats ? ` · ${project.plaats}` : ""}
             </p>
           </div>
         </div>
 
-        <div className="p-6">
+        {/* Slanke infobalk: omschrijving, data en kerncijfers inline */}
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 border-t border-slate-200 px-4 py-2 text-xs text-slate-600">
           {project.omschrijving && (
-            <p className="max-w-3xl text-sm text-slate-700">{project.omschrijving}</p>
+            <span className="min-w-0 max-w-sm truncate text-slate-500" title={project.omschrijving}>
+              {project.omschrijving}
+            </span>
           )}
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
-            <div className="flex gap-6 text-sm text-slate-600">
-              <span>
-                Start: <strong>{fmt(project.startdatum)}</strong>
-              </span>
-              <span>
-                Oplevering: <strong>{fmt(project.opleverdatum)}</strong>
-              </span>
-            </div>
-            <form action={wijzigProjectStatus} className="flex items-center gap-2">
-              <input type="hidden" name="projectId" value={project.id} />
-              <select name="status" defaultValue={project.status} className="input w-44">
-                {Object.entries(PROJECT_STATUS).map(([k, v]) => (
-                  <option key={k} value={k}>
-                    {v}
-                  </option>
-                ))}
-              </select>
-              <button className="btn-ghost" type="submit">
-                Fase bijwerken
-              </button>
-            </form>
-          </div>
-
-          <div className="mt-5 grid grid-cols-3 gap-3">
-          <div className="rounded-lg bg-slate-50 p-3 ring-1 ring-slate-200">
-            <div className="text-xs text-slate-500">Onderzoeken</div>
-            <div className="text-xl font-semibold">{totaal}</div>
-          </div>
-          <div className="rounded-lg bg-slate-50 p-3 ring-1 ring-slate-200">
-            <div className="text-xs text-slate-500">Beoordeeld / akkoord</div>
-            <div className="text-xl font-semibold">
-              {gereed}/{totaal}
-            </div>
-          </div>
-          <div className="rounded-lg bg-slate-50 p-3 ring-1 ring-slate-200">
-            <div className="text-xs text-slate-500">Verplicht nog open</div>
-            <div className={`text-xl font-semibold ${verplichtOpen > 0 ? "text-hanab-accent" : ""}`}>
-              {verplichtOpen}
-            </div>
-          </div>
-          </div>
+          <span>
+            Start <strong className="text-slate-800">{fmt(project.startdatum)}</strong>
+          </span>
+          <span>
+            Oplevering <strong className="text-slate-800">{fmt(project.opleverdatum)}</strong>
+          </span>
+          <span className="hidden h-4 w-px bg-slate-200 sm:block" />
+          <span>
+            Onderzoeken <strong className="text-slate-800">{totaal}</strong>
+          </span>
+          <span>
+            Akkoord <strong className="text-slate-800">{gereed}/{totaal}</strong>
+          </span>
+          <span>
+            Verplicht open{" "}
+            <strong className={verplichtOpen > 0 ? "text-hanab-accent" : "text-slate-800"}>{verplichtOpen}</strong>
+          </span>
+          <form action={wijzigProjectStatus} className="ml-auto flex items-center gap-2">
+            <input type="hidden" name="projectId" value={project.id} />
+            <select name="status" defaultValue={project.status} className="input w-40 py-1 text-xs">
+              {Object.entries(PROJECT_STATUS).map(([k, v]) => (
+                <option key={k} value={k}>
+                  {v}
+                </option>
+              ))}
+            </select>
+            <button className="btn-ghost px-3 py-1 text-xs" type="submit">
+              Fase bijwerken
+            </button>
+          </form>
         </div>
       </div>
 
