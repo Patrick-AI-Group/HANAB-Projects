@@ -4,7 +4,10 @@ import { traceCoords, traceLengteMeter } from "@/lib/opendata";
 import { labelOnderzoek } from "@/lib/domein";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+// 120s op Vercel Pro; op Hobby wordt dit gecapt op 60s. Door tijdens het
+// streamen tussentijds op te slaan gaat zelfs bij een harde cutoff niets
+// verloren (het rapport is dan vrijwel compleet opgeslagen).
+export const maxDuration = 120;
 
 // Streamt een AI-onderzoeksrapport als platte tekst (voor live weergave) en
 // bewaart het resultaat in de database — bewust GEEN filesystem, zodat het ook
@@ -45,12 +48,28 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     async start(controller) {
       let volledig = "";
       let bron: "claude" | "lokaal" = "lokaal";
+      let opgeslagenTot = 0;
+      // Tussentijds opslaan (vangnet tegen een serverless-timeout bij lange
+      // rapporten): elke ~3000 tekens de huidige tekst wegschrijven.
+      const bewaarTussentijds = async () => {
+        if (volledig.length - opgeslagenTot < 3000) return;
+        opgeslagenTot = volledig.length;
+        try {
+          await prisma.conditionerendOnderzoek.update({
+            where: { id: onderzoek.id },
+            data: { rapport: volledig, rapportBron: "claude", rapportPad: viewPad },
+          });
+        } catch {
+          /* niet fataal — definitieve opslag gebeurt in finally */
+        }
+      };
       try {
         if (heeftSleutel) {
           try {
             for await (const chunk of streamOnderzoekRapport(ctx, onderzoek, bevindingen, lengte)) {
               volledig += chunk;
               controller.enqueue(encoder.encode(chunk));
+              await bewaarTussentijds();
             }
             if (volledig.trim()) bron = "claude";
           } catch (e) {

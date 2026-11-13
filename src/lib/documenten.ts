@@ -374,7 +374,7 @@ export function onderzoekRapportHtml(
   onderzoek: any,
   tekst: string,
   datum: string,
-  opts: { bevindingen?: any[]; lengteM?: number } = {}
+  opts: { bevindingen?: any[]; lengteM?: number; kaartSvg?: string } = {}
 ): string {
   const bevindingen = opts.bevindingen ?? [];
   const gereed = onderzoekGereed(onderzoek.status);
@@ -404,7 +404,14 @@ export function onderzoekRapportHtml(
         .join("")}</tbody></table>`
     : "";
 
-  const body = kpiKaarten(kpis) + metaTabel + rapportBodyHtml(tekst) + bevindingenTabel;
+  const kaart = opts.kaartSvg
+    ? kaartFiguur(
+        opts.kaartSvg,
+        `Situatiekaart: ligging van het tracé (rood) te ${p.plaats ?? "projectlocatie"}${opts.lengteM ? `, ca. ${Math.round(opts.lengteM)} m` : ""}, waarlangs dit onderzoek is uitgevoerd. © OpenStreetMap-bijdragers.`
+      )
+    : "";
+
+  const body = kpiKaarten(kpis) + metaTabel + kaart + rapportBodyHtml(tekst) + bevindingenTabel;
   return wrap(`Rapportage — ${labelOnderzoek(onderzoek.type)}`, p, body, datum, {
     soort: "Onderzoeksrapport",
     intro: `Conditionerend onderzoek voor project ${p.naam}${p.plaats ? " te " + p.plaats : ""}. Dit rapport onderbouwt de uitvoerbaarheid en de te nemen maatregelen conform de geldende normen en regelgeving.`,

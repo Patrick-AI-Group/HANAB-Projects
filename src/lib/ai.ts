@@ -1034,18 +1034,19 @@ function bouwOnderzoekRapportPrompt(
     "- Gebruik alleen deze tags: <h2>, <h3>, <p>, <ul>, <li>, <strong>, <table>, <thead>, <tbody>, <tr>, <th>, <td>.",
     "- GEEN <html>, <head>, <body>, <script>, <style>; GEEN inline style-attributen; GEEN markdown (#, *, **).",
     "- Elke sectie begint met een <h2>. Sluit ALLE tags correct af en maak ALLE secties volledig af.",
-    "- LENGTE: beknopt maar compleet, circa 650–850 woorden in TOTAAL (± 2-4 zinnen of 3-5 opsommingspunten per sectie). Liever korter en met alle 7 secties volledig afgerond dan lang en halverwege afgekapt. Begin direct met sectie 1, geen inleidende tekst ervoor.",
+    "- LENGTE: UITGEBREID — circa 1200–1400 woorden in totaal (samen met de kaart en tabellen vormt dit minimaal 3 pagina's A4). Schrijf per hoofdsectie meerdere volwaardige alinea's (geen telegramstijl), maar rond ALLE 8 secties volledig af. Begin direct met sectie 1, geen inleidende tekst ervoor.",
     "",
     "SECTIES (elk een <h2>):",
-    "<h2>1. Aanleiding en doel</h2>",
-    "<h2>2. Project- en tracégegevens</h2> — geef deze als <table> met rij-labels (<th>) en waarden (<td>).",
-    "<h2>3. Onderzoeksopzet en normkader</h2>",
-    "<h2>4. Resultaten en bevindingen</h2> — gebruik waar passend een <table> of <ul>.",
-    "<h2>5. Risico's en aandachtspunten</h2> — als <ul>.",
-    "<h2>6. Conclusie en advies</h2>",
-    "<h2>7. Vervolgstappen en planning</h2> — als <ul>.",
+    "<h2>1. Aanleiding en doel</h2> — 2-3 alinea's: context van het project, waarom dit onderzoek nodig is, wettelijke/contractuele basis.",
+    "<h2>2. Project- en tracégegevens</h2> — korte inleiding + een <table> met rij-labels (<th>) en waarden (<td>) (project, locatie, type werk, tracélengte, opdrachtgever, uitvoerder).",
+    "<h2>3. Onderzoeksopzet en normkader</h2> — 2-3 alinea's: aanpak/methode, gehanteerde normen en richtlijnen, afbakening onderzoeksgebied.",
+    "<h2>4. Resultaten en bevindingen</h2> — meerdere alinea's met een <table> of <ul> van concrete resultaten; verwijs naar de aangeleverde open-data-bevindingen.",
+    "<h2>5. Impact per onderzoeksthema</h2> — een <table> met kolommen: Thema | Bevinding | Impact op uitvoering | Beheersmaatregel. Neem per relevant thema (bodem, natuur/Natura 2000, archeologie, ontplofbare oorlogsresten, kabels & leidingen, verharding/verkeer, water/bemaling) een rij op. Daaronder 1-2 alinea's toelichting.",
+    "<h2>6. Risico's en aandachtspunten</h2> — als <ul> met minimaal 5 concrete punten.",
+    "<h2>7. Conclusie en advies</h2> — 2-3 alinea's met een duidelijk eindoordeel over de uitvoerbaarheid.",
+    "<h2>8. Vervolgstappen en planning</h2> — als <ul> met concrete, volgordelijke acties.",
     "",
-    "INHOUD: volledig en concreet, elke sectie meerdere alinea's/punten; noem specifieke relevante Nederlandse normen en regelgeving (bv. WIBON/KLIC, CROW 500, NEN 3650/3651, NTA 8017, BRL SIKB, Wet natuurbescherming, Omgevingswet) passend bij dit onderzoekstype. Projectspecifiek (locatie, tracé, bevindingen), zakelijk Nederlands in de wij-vorm van de aannemer.",
+    "INHOUD: volledig, diepgaand en concreet; noem specifieke relevante Nederlandse normen en regelgeving (bv. WIBON/KLIC, CROW 500, CROW 400, NEN 3650/3651, NEN 5740, NTA 8017, BRL SIKB, Wet natuurbescherming, Omgevingswet, Waterwet, AERIUS) passend bij dit onderzoekstype. Projectspecifiek (locatie, tracé, bevindingen), zakelijk Nederlands in de wij-vorm van de aannemer.",
   ]
     .filter(Boolean)
     .join("\n");
@@ -1064,7 +1065,7 @@ export async function* streamOnderzoekRapport(
   const client = await getClient();
   const stream = client.messages.stream({
     model: await getModel("snel"),
-    max_tokens: 5000,
+    max_tokens: 7000,
     system: ONDERZOEK_RAPPORT_SYSTEM,
     messages: [{ role: "user", content: bouwOnderzoekRapportPrompt(ctx, onderzoek, bevindingen, tracelengteM) }],
   });
@@ -1099,7 +1100,7 @@ async function onderzoekRapportClaude(
   const client = await getClient();
   const resp = await client.messages.create({
     model: await getModel("snel"),
-    max_tokens: 5000,
+    max_tokens: 7000,
     system: ONDERZOEK_RAPPORT_SYSTEM,
     messages: [{ role: "user", content: bouwOnderzoekRapportPrompt(ctx, onderzoek, bevindingen, tracelengteM) }],
   });

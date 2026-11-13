@@ -7,12 +7,16 @@ export function TabNav({ projectId }: { projectId: string }) {
   const pathname = usePathname();
   const base = `/projecten/${projectId}`;
   const tabs = [
-    { href: base, label: "Intake & voorbereiding" },
     { href: `${base}/kaart`, label: "Kaart & bureauonderzoek" },
+    { href: `${base}/intake`, label: "Onderzoeken" },
+    { href: `${base}/voorcalculatie`, label: "Voorcalculatie" },
+    { href: `${base}/materiaal`, label: "Materiaal (MBB)" },
+    { href: `${base}/werktekeningen`, label: "Werktekeningen" },
+    { href: `${base}/dossier`, label: "Dossier" },
     { href: `${base}/uitvoering`, label: "Uitvoering" },
   ];
   return (
-    <nav className="flex gap-1 border-b border-slate-200">
+    <nav className="flex flex-wrap gap-1 border-b border-slate-200">
       {tabs.map((t) => {
         const actief = pathname === t.href;
         return (

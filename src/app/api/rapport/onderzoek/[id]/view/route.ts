@@ -1,8 +1,10 @@
 import { prisma } from "@/lib/db";
 import { onderzoekRapportHtml } from "@/lib/documenten";
 import { traceCoords, traceLengteMeter } from "@/lib/opendata";
+import { maakKaartje } from "@/lib/kaart";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 // Serveert het opgeslagen onderzoeksrapport als opgemaakte HTML, rechtstreeks
 // uit de database (geen filesystem nodig — werkt dus ook op Vercel).
@@ -25,8 +27,14 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   }
   const coords = traceCoords(project.traceGeoJson);
   const lengteM = coords.length >= 2 ? traceLengteMeter(coords) : undefined;
+  // Tracé-afbeelding (zelfstandige SVG met OSM-tegels); faalt netjes naar null.
+  const kaartje = coords.length >= 2 ? await maakKaartje(coords).catch(() => null) : null;
   const datum = new Date().toLocaleDateString("nl-NL");
-  const html = onderzoekRapportHtml(project, onderzoek, onderzoek.rapport, datum, { bevindingen, lengteM });
+  const html = onderzoekRapportHtml(project, onderzoek, onderzoek.rapport, datum, {
+    bevindingen,
+    lengteM,
+    kaartSvg: kaartje?.svg,
+  });
 
   return new Response(html, {
     headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
