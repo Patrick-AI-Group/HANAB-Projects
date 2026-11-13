@@ -15,6 +15,96 @@ function trace(punten) {
   });
 }
 
+// --- Wegroutering (OSRM) + bermverschuiving (gelijk aan src/lib/routing.ts) ---
+
+function haversine(a, b) {
+  const R = 6371000;
+  const dLat = ((b[1] - a[1]) * Math.PI) / 180;
+  const dLon = ((b[0] - a[0]) * Math.PI) / 180;
+  const la1 = (a[1] * Math.PI) / 180;
+  const la2 = (b[1] * Math.PI) / 180;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+function trimTo(coords, max) {
+  const out = [coords[0]];
+  let acc = 0;
+  for (let i = 1; i < coords.length; i++) {
+    const dist = haversine(coords[i - 1], coords[i]);
+    if (acc + dist >= max) {
+      const t = (max - acc) / dist;
+      out.push([
+        coords[i - 1][0] + (coords[i][0] - coords[i - 1][0]) * t,
+        coords[i - 1][1] + (coords[i][1] - coords[i - 1][1]) * t,
+      ]);
+      return out;
+    }
+    acc += dist;
+    out.push(coords[i]);
+  }
+  return out;
+}
+
+function offsetBerm(coords, meters) {
+  if (coords.length < 2) return coords;
+  return coords.map((c, i) => {
+    const prev = coords[Math.max(0, i - 1)];
+    const next = coords[Math.min(coords.length - 1, i + 1)];
+    const mLon = 111320 * Math.cos((c[1] * Math.PI) / 180);
+    const mLat = 111320;
+    let dx = (next[0] - prev[0]) * mLon;
+    let dy = (next[1] - prev[1]) * mLat;
+    const len = Math.hypot(dx, dy) || 1;
+    dx /= len;
+    dy /= len;
+    const nx = dy;
+    const ny = -dx;
+    return [c[0] + (nx * meters) / mLon, c[1] + (ny * meters) / mLat];
+  });
+}
+
+function uitdunnen(coords, stap) {
+  if (coords.length <= 3) return coords;
+  const out = [];
+  for (let i = 0; i < coords.length; i += stap) out.push(coords[i]);
+  if (out[out.length - 1] !== coords[coords.length - 1]) out.push(coords[coords.length - 1]);
+  return out;
+}
+
+/** Route langs de weg (OSRM), afgekapt op `maxMeters`, verschoven naar de berm. */
+async function volgDeWeg(waypoints, maxMeters = 520, bermOffsetM = 3) {
+  if (waypoints.length < 2) return null;
+  const coordStr = waypoints.map(([lon, lat]) => `${lon},${lat}`).join(";");
+  const url = `https://router.project-osrm.org/route/v1/driving/${coordStr}?overview=full&geometries=geojson`;
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 20000);
+    const res = await fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(t));
+    if (!res.ok) return null;
+    const j = await res.json();
+    const geom = j?.routes?.[0]?.geometry?.coordinates;
+    if (!Array.isArray(geom) || geom.length < 2) return null;
+    let coords = trimTo(geom, maxMeters);
+    coords = uitdunnen(coords, 2);
+    if (bermOffsetM) coords = offsetBerm(coords, bermOffsetM);
+    return coords;
+  } catch {
+    return null;
+  }
+}
+
+/** Probeert een realistisch, wegvolgend tracé (berm); valt terug op `fallback`. */
+async function wegTrace(waypoints, lengteM, fallback) {
+  const coords = await volgDeWeg(waypoints, lengteM, 3);
+  if (coords && coords.length >= 2) {
+    console.log(`  tracé via weg/berm: ${coords.length} knikpunten, ~${lengteM} m`);
+    return trace(coords);
+  }
+  console.log("  OSRM niet beschikbaar — terugval op handmatig tracé");
+  return trace(fallback);
+}
+
 /** Onderzoeksrapport-HTML (zelfde opmaak als de AI genereert). */
 function klicRapportHtml(naam, plaats, lengte) {
   return `<h2>1. Aanleiding en doel</h2>
@@ -135,15 +225,22 @@ async function main() {
   // ======================================================================
   // PROJECT 1 — Vlaggenschip: COMBI, in REVISIE, ALLE producten uitgewerkt
   // ======================================================================
-  const traceA = trace([
-    [5.37285, 52.1561],
-    [5.37489, 52.15547],
-    [5.37712, 52.15503],
-    [5.37934, 52.15466],
-    [5.38167, 52.15438],
-    [5.38401, 52.15402],
-    [5.38622, 52.15361],
-  ]);
+  const traceA = await wegTrace(
+    [
+      [5.3689, 52.1567],
+      [5.3875, 52.1489],
+    ],
+    850,
+    [
+      [5.37285, 52.1561],
+      [5.37489, 52.15547],
+      [5.37712, 52.15503],
+      [5.37934, 52.15466],
+      [5.38167, 52.15438],
+      [5.38401, 52.15402],
+      [5.38622, 52.15361],
+    ]
+  );
 
   const p1 = await prisma.project.create({
     data: {
@@ -316,13 +413,20 @@ async function main() {
   // ======================================================================
   // PROJECT 2 — Leidingen water, in UITVOERING
   // ======================================================================
-  const traceB = trace([
-    [5.6195, 52.3402],
-    [5.6218, 52.3408],
-    [5.6243, 52.3413],
-    [5.6271, 52.3417],
-    [5.6298, 52.3421],
-  ]);
+  const traceB = await wegTrace(
+    [
+      [5.6155, 52.3388],
+      [5.6322, 52.3447],
+    ],
+    600,
+    [
+      [5.6195, 52.3402],
+      [5.6218, 52.3408],
+      [5.6243, 52.3413],
+      [5.6271, 52.3417],
+      [5.6298, 52.3421],
+    ]
+  );
   const p2 = await prisma.project.create({
     data: {
       projectnummer: "HNB-2026-002",
@@ -400,12 +504,19 @@ async function main() {
   // ======================================================================
   // PROJECT 3 — Kabels elektra, in VOORBEREIDING
   // ======================================================================
-  const traceC = trace([
-    [6.0892, 52.5075],
-    [6.0908, 52.5069],
-    [6.0925, 52.5063],
-    [6.0941, 52.5058],
-  ]);
+  const traceC = await wegTrace(
+    [
+      [6.0845, 52.5095],
+      [6.1005, 52.5030],
+    ],
+    1400,
+    [
+      [6.0892, 52.5075],
+      [6.0908, 52.5069],
+      [6.0925, 52.5063],
+      [6.0941, 52.5058],
+    ]
+  );
   const p3 = await prisma.project.create({
     data: {
       projectnummer: "HNB-2026-003",
