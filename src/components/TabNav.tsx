@@ -7,7 +7,7 @@ export function TabNav({ projectId }: { projectId: string }) {
   const pathname = usePathname();
   const base = `/projecten/${projectId}`;
   const tabs = [
-    { href: `${base}/kaart`, label: "Kaart & bureauonderzoek" },
+    { href: `${base}/kaart`, label: "Kaart & tracé" },
     { href: `${base}/intake`, label: "Onderzoeken" },
     { href: `${base}/voorcalculatie`, label: "Voorcalculatie" },
     { href: `${base}/materiaal`, label: "Materiaal (MBB)" },
