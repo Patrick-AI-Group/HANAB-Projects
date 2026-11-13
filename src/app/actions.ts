@@ -582,7 +582,7 @@ export async function genereerDeelbetaling(formData: FormData) {
       bericht: `Deelbetaling termijn ${termijn} aangemaakt: € ${bedrag.toLocaleString("nl-NL")} (gerealiseerd € ${Math.round(gerealiseerd).toLocaleString("nl-NL")}, reeds gefactureerd € ${Math.round(reedsGefactureerd).toLocaleString("nl-NL")}).`,
     },
   });
-  revalidatePath(`/projecten/${projectId}/uitvoering`);
+  revalidatePath(`/projecten/${projectId}/afrekening`);
 }
 
 export async function voegDeelbetalingToe(formData: FormData) {
@@ -599,7 +599,7 @@ export async function voegDeelbetalingToe(formData: FormData) {
       status: "CONCEPT",
     },
   });
-  revalidatePath(`/projecten/${projectId}/uitvoering`);
+  revalidatePath(`/projecten/${projectId}/afrekening`);
 }
 
 export async function wijzigDeelbetalingStatus(formData: FormData) {
@@ -608,7 +608,7 @@ export async function wijzigDeelbetalingStatus(formData: FormData) {
   const status = str(formData.get("status"));
   if (!id || !status) return;
   await prisma.deelbetaling.update({ where: { id }, data: { status } });
-  if (projectId) revalidatePath(`/projecten/${projectId}/uitvoering`);
+  if (projectId) revalidatePath(`/projecten/${projectId}/afrekening`);
 }
 
 export async function verwijderDeelbetaling(formData: FormData) {
@@ -616,7 +616,7 @@ export async function verwijderDeelbetaling(formData: FormData) {
   const projectId = str(formData.get("projectId"));
   if (!id) return;
   await prisma.deelbetaling.delete({ where: { id } });
-  if (projectId) revalidatePath(`/projecten/${projectId}/uitvoering`);
+  if (projectId) revalidatePath(`/projecten/${projectId}/afrekening`);
 }
 
 // --- Deelrevisies ----------------------------------------------------------

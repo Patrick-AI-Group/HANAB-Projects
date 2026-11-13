@@ -14,6 +14,7 @@ export function TabNav({ projectId }: { projectId: string }) {
     { href: `${base}/werktekeningen`, label: "Werktekeningen" },
     { href: `${base}/dossier`, label: "Dossier" },
     { href: `${base}/uitvoering`, label: "Uitvoering" },
+    { href: `${base}/afrekening`, label: "Afrekening" },
   ];
   return (
     <nav className="flex flex-wrap gap-1 border-b border-slate-200">
