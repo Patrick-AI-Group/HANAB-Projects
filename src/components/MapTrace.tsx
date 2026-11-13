@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import "leaflet/dist/leaflet.css";
 import { opslaanTrace } from "@/app/actions";
 import { dxfNaarTrace, gesimuleerdTrace } from "@/lib/dxf";
+import { klicKabels, ceGebieden, archeologie, bomen } from "@/lib/datalagen";
 
 type LngLat = [number, number]; // [lon, lat] — GeoJSON-volgorde
 
@@ -38,6 +39,12 @@ export function MapTrace({
   const drawingRef = useRef(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Gesimuleerde datalagen (demo) — groepen die meebewegen met het tracé.
+  const klicRef = useRef<any>(null);
+  const ceRef = useRef<any>(null);
+  const archRef = useRef<any>(null);
+  const bomenRef = useRef<any>(null);
+
   const [pts, setPts] = useState<LngLat[]>([]);
   const [tekenen, setTekenen] = useState(false);
   const [klaar, setKlaar] = useState(false);
@@ -64,7 +71,7 @@ export function MapTrace({
         attribution: "PDOK Luchtfoto",
       });
 
-      // Datalagen (WMS-overlays)
+      // Echte milieu-/ondergrondlagen (PDOK WMS-overlays)
       const natura = L.tileLayer.wms("https://service.pdok.nl/rvo/natura2000/wms/v1_0", {
         layers: "natura2000",
         format: "image/png",
@@ -79,11 +86,42 @@ export function MapTrace({
         opacity: 0.55,
         attribution: "PDOK/BRO Bodemkaart",
       });
+      const percelen = L.tileLayer.wms("https://service.pdok.nl/kadaster/kadastralekaart/wms/v5_0", {
+        layers: "Kadastralekaart",
+        format: "image/png",
+        transparent: true,
+        opacity: 0.8,
+        attribution: "PDOK/Kadaster — Kadastrale kaart",
+      });
+      const hoogte = L.tileLayer.wms("https://service.pdok.nl/rws/ahn/wms/v1_0", {
+        layers: "dtm_05m",
+        format: "image/png",
+        transparent: true,
+        opacity: 0.6,
+        attribution: "PDOK/RWS — AHN hoogte (maaiveld)",
+      });
+
+      // Gesimuleerde HANAB-lagen (demo) — gevuld in het punten-effect.
+      klicRef.current = L.layerGroup();
+      ceRef.current = L.layerGroup();
+      archRef.current = L.layerGroup();
+      bomenRef.current = L.layerGroup();
+      // KLIC standaard zichtbaar: kabels & leidingen zijn de kern van het werk.
+      klicRef.current.addTo(map);
 
       L.control
         .layers(
           { "OpenStreetMap": osm, "Luchtfoto (PDOK)": luchtfoto },
-          { "Natura 2000 (natuur)": natura, "Bodemkaart (BRO)": bodem },
+          {
+            "KLIC — kabels & leidingen (demo)": klicRef.current,
+            "Niet-gesprongen explosieven (demo)": ceRef.current,
+            "Archeologische verwachting (demo)": archRef.current,
+            "Bomen / boomregister (demo)": bomenRef.current,
+            "Kadastrale percelen (PDOK)": percelen,
+            "Hoogte AHN (PDOK)": hoogte,
+            "Natura 2000 (PDOK)": natura,
+            "Bodemkaart BRO (PDOK)": bodem,
+          },
           { collapsed: false }
         )
         .addTo(map);
@@ -153,6 +191,71 @@ export function MapTrace({
         .addTo(markersRef.current);
     });
   }, [pts]);
+
+  // Gesimuleerde datalagen opnieuw opbouwen bij elke tracé-wijziging.
+  useEffect(() => {
+    const L = LRef.current;
+    const map = mapRef.current;
+    if (!L || !map || !klicRef.current) return;
+
+    const c = map.getCenter?.();
+    const center: [number, number] = c ? [c.lng, c.lat] : [5.38, 52.15];
+    const xy = ([lon, lat]: [number, number]) => [lat, lon] as [number, number];
+
+    // KLIC — kabels & leidingen
+    klicRef.current.clearLayers();
+    klicKabels(pts, center).forEach((f) => {
+      L.polyline(f.coords.map(xy), {
+        color: f.kleur,
+        weight: f.dik,
+        opacity: 0.95,
+        dashArray: f.dash,
+      })
+        .bindTooltip(f.label, { sticky: true })
+        .addTo(klicRef.current);
+    });
+
+    // CE — niet-gesprongen explosieven
+    ceRef.current.clearLayers();
+    ceGebieden(pts, center).forEach((f) => {
+      L.polygon(f.ring.map(xy), {
+        color: f.kleur,
+        weight: 2,
+        dashArray: "6 4",
+        fillColor: f.kleur,
+        fillOpacity: f.opacity ?? 0.2,
+      })
+        .bindTooltip(f.label, { sticky: true })
+        .addTo(ceRef.current);
+    });
+
+    // Archeologische verwachting
+    archRef.current.clearLayers();
+    archeologie(pts, center).forEach((f) => {
+      L.polygon(f.ring.map(xy), {
+        color: f.kleur,
+        weight: 1,
+        fillColor: f.kleur,
+        fillOpacity: f.opacity ?? 0.25,
+      })
+        .bindTooltip(f.label, { sticky: true })
+        .addTo(archRef.current);
+    });
+
+    // Bomen
+    bomenRef.current.clearLayers();
+    bomen(pts, center).forEach((f) => {
+      L.circleMarker(xy(f.punt), {
+        radius: f.radius ?? 5,
+        color: "#14532d",
+        weight: 1,
+        fillColor: f.kleur,
+        fillOpacity: 0.9,
+      })
+        .bindTooltip(f.label, { sticky: true })
+        .addTo(bomenRef.current);
+    });
+  }, [pts, klaar]);
 
   const geo = JSON.stringify({
     type: "Feature",
@@ -256,6 +359,31 @@ export function MapTrace({
         style={{ background: "#dfe7ef" }}
       />
       {!klaar && <p className="text-xs text-slate-400">Kaart laden… (vereist internetverbinding voor de PDOK-achtergrondkaart)</p>}
+
+      <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600 ring-1 ring-slate-200">
+        <div className="mb-1 font-semibold text-slate-700">
+          KLIC — kabels & leidingen <span className="font-normal text-slate-400">(gesimuleerde demo-data)</span>
+        </div>
+        <div className="flex flex-wrap gap-x-4 gap-y-1">
+          {[
+            ["#d81e1e", "Elektra LS"],
+            ["#b11fd8", "Elektra MS"],
+            ["#f2b705", "Gas"],
+            ["#1f6fd6", "Drinkwater"],
+            ["#ff8c1a", "Telecom/data"],
+            ["#7a5230", "Riool"],
+          ].map(([kleur, naam]) => (
+            <span key={naam} className="inline-flex items-center gap-1.5">
+              <span className="inline-block h-1 w-5 rounded" style={{ background: kleur }} />
+              {naam}
+            </span>
+          ))}
+        </div>
+        <p className="mt-1.5 text-slate-400">
+          Extra lagen via het lagenpaneel rechtsboven: explosieven, archeologie, bomen (gesimuleerd) ·
+          percelen, hoogte, Natura 2000, bodem (echte PDOK-data).
+        </p>
+      </div>
 
       <form action={opslaanTrace} className="flex items-center gap-3">
         <input type="hidden" name="projectId" value={projectId} />
